@@ -6,7 +6,7 @@ This is a command-line tool to convert a JSR package into a format that can be p
 
 1.  **Run the script using Deno:**
     ```bash
-    deno run --allow-all cli.ts
+    deno run --allow-all https://raw.githubusercontent.com/yaonyan/jsr2npm/main/cli.ts
     ```
 
 2.  **Follow the interactive prompts:**
