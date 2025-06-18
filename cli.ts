@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
+#!/usr/bin/env -S deno run --allow-all
 import { Ask } from "jsr:@sallai/ask@2.0.2";
 import $ from "jsr:@david/dax";
 
