@@ -1,9 +1,11 @@
 {
-  "name": "@yaonyan/gpt-vis-mcp",
-  "version": "0.0.1",
+  "name": "@jsr2npm/gpt-vis-mcp",
+  "version": "0.0.6",
   "homepage": "https://jsr.io/@yao/gpt-vis-mcp",
   "type": "module",
-  "bin": "./bundle.mjs",
+  "bin": {
+    "gpt-vis-mcp": "./bundle.mjs"
+  },
   "exports": {
     ".": "./bundle.mjs",
     "./bin": "./bundle.mjs"
