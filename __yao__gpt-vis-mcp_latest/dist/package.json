@@ -23,7 +23,11 @@
     "@segment/ajv-human-errors": "2.15.0",
     "ajv-formats": "3.0.1",
     "cheerio": "1.1.0",
-    "zod": "3.25.67"
+    "zod": "3.25.67",
+    "@antv/mcp-server-chart": "0.7.1"
+  },
+  "overrides": {
+    "canvas": "3.1.0"
   },
   "scripts": {
     "start": "node bundle.mjs"
