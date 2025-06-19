@@ -40,28 +40,26 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
                   return null;
                 }
 
-                // 包含 JSR 包
+                // Include JSR packages
                 if (
                   args.path.startsWith("@jsr/") ||
                   args.path.startsWith("jsr:")
                 ) {
                   console.log("  → Including JSR package");
-                  return null; // 让 esbuild 处理
+                  return null; // Let esbuild handle it
                 }
 
-                // 包含相对路径
+                // Include relative/absolute paths
                 if (args.path.startsWith(".") || args.path.startsWith("/")) {
                   console.log("  → Including relative/absolute path");
                   return null;
                 }
 
-                // 排除 Node.js 内置模块
                 if (args.path.startsWith("node:")) {
                   console.log("  → Excluding Node.js built-in");
                   return { path: args.path, external: true };
                 }
 
-                // 排除其他所有第三方包并收集它们
                 console.log("  → Excluding third-party package");
                 externalDeps.add(args.path);
                 return { path: args.path, external: true };
@@ -75,14 +73,12 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
 
     console.log("✅ Bundle created successfully!");
 
-    // 将收集到的外部依赖转换为数组
     const externalDepsArray = Array.from(externalDeps);
     console.log(
       `📦 Collected ${externalDepsArray.length} external dependencies:`
     );
     externalDepsArray.forEach((dep) => console.log(`  - ${dep}`));
 
-    // 获取依赖版本并生成 package.json
     await generatePackageJson(packageDir, externalDepsArray);
   } catch (error) {
     console.error("❌ Build failed:", error);
@@ -95,7 +91,16 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
 async function generatePackageJson(packageDir: string, externalDeps: string[]) {
   console.log("\n📋 Generating package.json with external dependencies...");
 
-  // 读取原始 JSR 包的 package.json
+  const distPackageJsonPath = `${packageDir}/dist/package.json`;
+  try {
+    await Deno.stat(distPackageJsonPath);
+    console.log("✅ Found existing package.json in dist directory, keeping it");
+    return;
+  } catch (error) {
+    console.log("📋 No existing package.json in dist, creating new one...");
+  }
+
+  // Read original JSR package's package.json
   let originalPackageJson: Record<string, unknown> = {};
   try {
     const originalPackageJsonContent = await Deno.readTextFile(
@@ -105,7 +110,7 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
     console.log("✅ Found original package.json in JSR package");
   } catch (error) {
     console.warn("⚠️ Could not read original package.json:", error);
-    // 如果读取失败，使用默认值
+    // If reading fails, use default values
     originalPackageJson = {
       name: "converted-jsr-package",
       version: "1.0.0",
@@ -114,7 +119,7 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
     };
   }
 
-  // 读取 package-lock.json 获取版本信息
+  // Read package-lock.json to get version information
   let packageLock: Record<string, unknown> = {};
 
   try {
@@ -126,45 +131,45 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
     console.warn("⚠️ Could not read package-lock.json:", error);
   }
 
-  // 构建依赖对象
+  // Build dependencies object
   const dependencies: Record<string, string> = {};
 
   for (const dep of externalDeps) {
-    // 跳过 Node.js 内置模块
+    // Skip Node.js built-in modules
     if (dep.startsWith("node:")) {
       continue;
     }
 
-    // 过滤掉带路径的包，只保留 @scope/name 格式
+    // Filter out packages with paths, only keep @scope/name format
     const packageParts = dep.split("/");
     let packageName = dep;
 
     if (dep.startsWith("@") && packageParts.length > 2) {
-      // 对于 @scope/name/path 格式，只保留 @scope/name
+      // For @scope/name/path format, only keep @scope/name
       packageName = `${packageParts[0]}/${packageParts[1]}`;
     } else if (!dep.startsWith("@") && packageParts.length > 1) {
-      // 对于 package/path 格式，只保留 package
+      // For package/path format, only keep package
       packageName = packageParts[0];
     }
 
-    // 如果已经处理过这个包，跳过
+    // If this package has already been processed, skip it
     if (dependencies[packageName]) {
       continue;
     }
 
-    // 从 package-lock.json 中获取版本
+    // Get version from package-lock.json
     let version = "latest";
 
     const packages =
       (packageLock.packages as Record<string, { version?: string }>) || {};
 
-    // 在 package-lock.json 的 packages 中查找对应的包
+    // Look for the corresponding package in package-lock.json packages
     for (const [pkgPath, pkgInfo] of Object.entries(packages)) {
-      // 从路径中提取包名，支持嵌套的 node_modules
-      // 例如从 "node_modules/@scope/name" 或 "node_modules/pkg/node_modules/@scope/name" 提取 "@scope/name"
+      // Extract package name from path, support nested node_modules
+      // For example, extract "@scope/name" from "node_modules/@scope/name" or "node_modules/pkg/node_modules/@scope/name"
       let lockPackageName = "";
 
-      // 找到最后一个 node_modules 后的包名
+      // Find package name after the last node_modules
       const nodeModulesIndex = pkgPath.lastIndexOf("node_modules/");
       if (nodeModulesIndex !== -1) {
         const afterNodeModules = pkgPath.substring(
@@ -173,10 +178,10 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
         const pathParts = afterNodeModules.split("/");
 
         if (pathParts[0]?.startsWith("@")) {
-          // 处理 scoped package: @scope/name
+          // Handle scoped package: @scope/name
           lockPackageName = `${pathParts[0]}/${pathParts[1]}`;
         } else {
-          // 处理普通 package: package
+          // Handle normal package: package
           lockPackageName = pathParts[0];
         }
       }
@@ -309,13 +314,13 @@ async function main() {
     default: "mod.ts",
     validate: (input?: string) => {
       if (!input || !input.trim()) {
-        return true; // 允许空输入，会使用默认值
+        return true; // Allow empty input, will use default value
       }
-      // 验证输入是否像文件名
+      // Validate if input looks like a filename
       if (input.includes("@") || input.includes(" ")) {
-        return false; // 不允许包含 @ 或空格的输入
+        return false; // Don't allow inputs containing @ or spaces
       }
-      // 确保有文件扩展名
+      // Ensure it has a file extension
       if (!input.includes(".")) {
         return false;
       }
@@ -389,6 +394,17 @@ async function main() {
     // Move dist folder to conversion root
     console.log("📁 Moving dist folder to conversion root...");
     const targetDistPath = `${Deno.cwd()}/dist`;
+    const sourceDistPath = `${packageDir}/dist`;
+
+    // Check if target dist already has package.json and preserve it
+    let existingPackageJson: string | null = null;
+    const targetPackageJsonPath = `${targetDistPath}/package.json`;
+    try {
+      existingPackageJson = await Deno.readTextFile(targetPackageJsonPath);
+      console.log("📋 Found existing package.json in target dist, will preserve it");
+    } catch {
+      // No existing package.json, which is fine
+    }
 
     // Remove existing dist directory if it exists
     try {
@@ -398,7 +414,13 @@ async function main() {
       // Directory doesn't exist, which is fine
     }
 
-    await Deno.rename(`${packageDir}/dist`, targetDistPath);
+    await Deno.rename(sourceDistPath, targetDistPath);
+
+    // Restore existing package.json if it existed
+    if (existingPackageJson) {
+      await Deno.writeTextFile(targetPackageJsonPath, existingPackageJson);
+      console.log("✅ Restored existing package.json in target dist");
+    }
 
     // Step 6: Copy extra files like README and LICENSE
     await copyExtraFiles(packageDir, targetDistPath);

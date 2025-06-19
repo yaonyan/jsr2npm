@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // node_modules/@yao/gpt-vis-mcp/stdio.server.ts
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
