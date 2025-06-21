@@ -1,6 +1,6 @@
 {
   "name": "@jsr2npm/yao__gpt-vis-mcp",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "homepage": "https://jsr.io/@yao/gpt-vis-mcp",
   "type": "module",
   "bin": {

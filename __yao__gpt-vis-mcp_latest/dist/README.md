@@ -1,12 +1,85 @@
-# Private/standalone MCP Server Chart Wrapper
+# GPT-Vis MCP Server
 
-This project provides a **private standalone wrapper** for [antvis/mcp-server-chart](https://github.com/antvis/mcp-server-chart), featuring:
+A **local wrapper** for
+[antvis/mcp-server-chart](https://github.com/antvis/mcp-server-chart) that
+generates charts locally without external server dependencies.
 
-- No external server dependency
-- Local execution via Model Context Protocol (MCP)
-- Direct integration with [GPT-Vis](https://github.com/antvis/GPT-Vis) visualization framework
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Credits
+## ✨ Features
 
-- [GPT-Vis](https://github.com/antvis/GPT-Vis) visualization framework
-- [MCP server chart](https://github.com/antvis/mcp-server-chart) protocol integration
+- 🔒 **Private & Secure**: Local chart generation, no external dependencies
+- 🚀 **Easy Setup**: One command installation for Claude Desktop
+- 🎨 **Rich Charts**: 25+ chart types (pie, line, bar, radar, maps, etc.)
+- 📊 **Enterprise Ready**: Perfect for secure environments
+
+## 🚀 Usage
+
+### Claude Desktop (Recommended)
+
+Add to your Claude Desktop MCP settings:
+
+**Option 1: NPX (Recommended)**
+
+```json
+{
+  "mcpServers": {
+    "gpt-vis-mcp": {
+      "command": "npx",
+      "args": ["@jsr2npm/yao__gpt-vis-mcp@0.0.3"]
+    }
+  }
+}
+```
+
+You may experience `canvas` dependencies issue when using npx, if so, try option
+2
+
+**Option 2: Docker**
+
+```json
+{
+  "mcpServers": {
+    "gpt-vis-mcp": {
+      "command": "docker",
+      "args": ["run", "--rm", "ghcr.io/yaonyan/gpt-vis-mcp:latest-mcp"]
+    }
+  }
+}
+```
+
+Set environment variables as needed:
+
+| Variable                   | Description                   | Default     |
+| -------------------------- | ----------------------------- | ----------- |
+| `RENDERED_IMAGE_PATH`      | Chart images directory        | system temp |
+| `RENDERED_IMAGE_HOST_PATH` | Base URL for accessing images | (optional)  |
+
+### Docker SSR Server
+
+```bash
+# Run SSR API server
+docker run -p 3000:3000 ghcr.io/yaonyan/gpt-vis-mcp:latest-http
+
+# Test the SSR API
+curl -X POST http://localhost:3000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"type": "pie", "data": [{"category": "A", "value": 30}, {"category": "B", "value": 70}]}'
+```
+
+### Binary
+
+```bash
+# Download binary from releases
+curl -L https://github.com/yaonyan/gpt-vis-mcp/releases/latest/download/gpt-vis-mcp -o gpt-vis-mcp
+chmod +x gpt-vis-mcp
+./gpt-vis-mcp
+```
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE)

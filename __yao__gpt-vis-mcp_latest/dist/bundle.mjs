@@ -1,8 +1,10 @@
+#!/usr/bin/env node
+
 // node_modules/@yao/gpt-vis-mcp/stdio.server.ts
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 // node_modules/@yao/gpt-vis-mcp/app.js
-import { generateId as generateId3, jsonSchema as jsonSchema3 } from "ai";
+import { render } from "@antv/gpt-vis-ssr";
 
 // node_modules/@jsr/mcpc__core/src/compose.js
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -1204,33 +1206,47 @@ var qwen = createOpenAI2({
 // node_modules/@jsr/mcpc__core/src/set-up-mcp-compose.js
 import minimist from "minimist";
 
+// node_modules/@yao/gpt-vis-mcp/app.js
+import { generateId as generateId3, jsonSchema as jsonSchema3 } from "ai";
+import { access, constants, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import process5 from "node:process";
+
 // node_modules/@yao/gpt-vis-mcp/constant.js
 var CHART_TYPE_MAP = {
+  // Statistical Charts
   generate_area_chart: "area",
   generate_bar_chart: "bar",
-  generate_boxplot_chart: "boxplot",
   generate_column_chart: "column",
-  generate_district_map: "district-map",
-  generate_dual_axes_chart: "dual-axes",
-  generate_fishbone_diagram: "fishbone-diagram",
-  generate_flow_diagram: "flow-diagram",
-  generate_funnel_chart: "funnel",
-  generate_histogram_chart: "histogram",
   generate_line_chart: "line",
-  generate_liquid_chart: "liquid",
-  generate_mind_map: "mind-map",
-  generate_network_graph: "network-graph",
-  generate_organization_chart: "organization-chart",
-  generate_path_map: "path-map",
   generate_pie_chart: "pie",
-  generate_pin_map: "pin-map",
+  generate_scatter_chart: "scatter",
+  generate_histogram_chart: "histogram",
+  // Distribution Charts
+  generate_boxplot_chart: "boxplot",
+  generate_violin_chart: "violin",
+  // Relationship Charts
   generate_radar_chart: "radar",
   generate_sankey_chart: "sankey",
-  generate_scatter_chart: "scatter",
-  generate_treemap_chart: "treemap",
+  generate_funnel_chart: "funnel",
   generate_venn_chart: "venn",
-  generate_violin_chart: "violin",
-  generate_word_cloud_chart: "word-cloud"
+  // Hierarchical Charts
+  generate_treemap_chart: "treemap",
+  generate_mind_map: "mind-map",
+  generate_organization_chart: "organization-chart",
+  // Flow and Process Charts
+  generate_flow_diagram: "flow-diagram",
+  generate_fishbone_diagram: "fishbone-diagram",
+  generate_network_graph: "network-graph",
+  // Specialized Charts
+  generate_dual_axes_chart: "dual-axes",
+  generate_liquid_chart: "liquid",
+  generate_word_cloud_chart: "word-cloud",
+  // Geographic Charts
+  generate_district_map: "district-map",
+  generate_path_map: "path-map",
+  generate_pin_map: "pin-map"
 };
 var CHART_TYPE_UNSUPPORTED = [
   "geographic_district_map",
@@ -1239,19 +1255,29 @@ var CHART_TYPE_UNSUPPORTED = [
 ];
 
 // node_modules/@yao/gpt-vis-mcp/app.js
-import { render } from "@antv/gpt-vis-ssr";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { mkdir } from "node:fs/promises";
-var RENDERED_IMAGE_PATH = process.env.RENDERED_IMAGE_PATH ?? join("/tmp", tmpdir());
-var RENDERED_IMAGE_HOST_PATH = process.env.RENDERED_IMAGE_HOST_PATH;
+var config = {
+  renderedImagePath: process5.env.RENDERED_IMAGE_PATH ?? join(tmpdir(), "gpt-vis-charts"),
+  renderedImageHostPath: process5.env.RENDERED_IMAGE_HOST_PATH
+};
+async function initializeImageDirectory() {
+  try {
+    await access(config.renderedImagePath, constants.F_OK);
+  } catch {
+    try {
+      await mkdir(config.renderedImagePath, {
+        recursive: true
+      });
+    } catch (error) {
+      console.error(`\u274C Failed to create directory ${config.renderedImagePath}:`, error);
+      throw new Error(`Failed to initialize image directory: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
 try {
-  await mkdir(RENDERED_IMAGE_PATH, {
-    recursive: true
-  });
+  await initializeImageDirectory();
 } catch (error) {
-  console.error(`Failed to create directory ${RENDERED_IMAGE_PATH}:`, error);
-  process.exit(1);
+  console.error("\u274C Startup failed:", error);
+  process5.exit(1);
 }
 var tools = await composeMcpDepTools({
   mcpServers: {
@@ -1266,48 +1292,88 @@ var tools = await composeMcpDepTools({
 });
 var server = new ComposableMCPServer({
   name: "gpt-vis-mcp",
-  version: "0.1.0"
+  version: "0.0.3"
 }, {
   capabilities: {
     tools: {}
   }
 });
-var registerToolWithNewExcuter = (tool) => {
+function generateImageFilename() {
+  const id = generateId3(8);
+  const timestamp = Date.now();
+  return `chart_${timestamp}_${id}.png`;
+}
+function generateImageResponse(filename) {
+  const fullPath = join(config.renderedImagePath, filename);
+  if (config.renderedImageHostPath) {
+    return `${config.renderedImageHostPath}/${filename}`;
+  }
+  return fullPath;
+}
+async function generateChart(options) {
+  try {
+    const vis = await render(options);
+    const filename = generateImageFilename();
+    const fullPath = join(config.renderedImagePath, filename);
+    await vis.exportToFile(fullPath, {});
+    const imageUrl = generateImageResponse(filename);
+    return {
+      isError: false,
+      content: [
+        {
+          type: "text",
+          text: config.renderedImageHostPath ? `Chart generated successfully! Access it at: ${imageUrl}` : `Chart generated and saved to: ${imageUrl}`
+        }
+      ]
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`\u274C Chart generation failed:`, errorMessage);
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `Failed to generate chart: ${errorMessage}`
+        }
+      ]
+    };
+  }
+}
+var registerToolWithLocalExecutor = (tool) => {
   const { name, description, inputSchema } = tool;
-  server.tool(name, description, jsonSchema3(inputSchema), async ({ data }) => {
+  if (CHART_TYPE_UNSUPPORTED.includes(name)) {
+    return;
+  }
+  server.tool(name, description, jsonSchema3(inputSchema), async (context) => {
     try {
+      const { data } = context;
       const type = CHART_TYPE_MAP[name];
+      if (!type) {
+        throw new Error(`Unknown chart type for tool: ${name}`);
+      }
       const options = {
         type,
         data
       };
-      const vis = await render(options);
-      const id = generateId3(8);
-      const path = join(RENDERED_IMAGE_PATH, `${id}.png`);
-      vis.exportToFile(path, {});
-      return {
-        isError: false,
-        content: [
-          {
-            type: "text",
-            text: RENDERED_IMAGE_HOST_PATH ? `Image generated successfully: ${RENDERED_IMAGE_HOST_PATH}/${id}.png` : `Image generated and saved to ${path}`
-          }
-        ]
-      };
+      return await generateChart(options);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`\u274C Tool execution failed for ${name}:`, errorMessage);
       return {
         isError: true,
         content: [
           {
             type: "text",
-            text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            text: `Error executing ${name}: ${errorMessage}`
           }
         ]
       };
     }
   });
 };
-Object.values(tools).filter((tool) => !CHART_TYPE_UNSUPPORTED.includes(tool)).forEach(registerToolWithNewExcuter);
+var supportedTools = Object.values(tools).filter((tool) => !CHART_TYPE_UNSUPPORTED.includes(tool.name));
+supportedTools.forEach(registerToolWithLocalExecutor);
 
 // node_modules/@yao/gpt-vis-mcp/stdio.server.ts
 var transport = new StdioServerTransport();

@@ -17,6 +17,9 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
       platform: "node",
       format: "esm",
       outfile: `${packageDir}/dist/bundle.mjs`,
+      banner: {
+        js: "#!/usr/bin/env node"
+      },
       plugins: [
         {
           name: "jsr-only",
@@ -73,6 +76,21 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
 
     console.log("✅ Bundle created successfully!");
 
+    // Make the bundle executable if it has a shebang
+    try {
+      const bundlePath = `${packageDir}/dist/bundle.mjs`;
+      const bundleContent = await Deno.readTextFile(bundlePath);
+      if (bundleContent.startsWith("#!/usr/bin/env node")) {
+        const fileInfo = await Deno.stat(bundlePath);
+        const currentMode = fileInfo.mode || 0o644;
+        // Add execute permissions (user, group, other)
+        await Deno.chmod(bundlePath, currentMode | 0o111);
+        console.log("✅ Made bundle executable");
+      }
+    } catch (chmodError) {
+      console.warn("⚠️ Could not make bundle executable:", chmodError);
+    }
+
     const externalDepsArray = Array.from(externalDeps);
     console.log(
       `📦 Collected ${externalDepsArray.length} external dependencies:`
@@ -80,9 +98,9 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
     externalDepsArray.forEach((dep) => console.log(`  - ${dep}`));
 
     await generatePackageJson(packageDir, externalDepsArray);
-  } catch (error) {
-    console.error("❌ Build failed:", error);
-    throw error;
+  } catch (_error) {
+    console.error("❌ Build failed:", _error);
+    throw _error;
   }
 
   console.log("✅ JSR-only bundling completed!");
@@ -96,7 +114,7 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
     await Deno.stat(distPackageJsonPath);
     console.log("✅ Found existing package.json in dist directory, keeping it");
     return;
-  } catch (error) {
+  } catch (_error) {
     console.log("📋 No existing package.json in dist, creating new one...");
   }
 
