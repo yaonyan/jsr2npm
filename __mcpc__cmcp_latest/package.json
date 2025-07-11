@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@mcpc/cmcp": "npm:@jsr/mcpc__cmcp@^0.0.3"
+  }
+}

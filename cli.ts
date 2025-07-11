@@ -11,6 +11,8 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
 
   try {
     const { build } = await import("npm:esbuild@0.25.5");
+    
+    // First build for JavaScript bundle
     await build({
       entryPoints: [`${packageDir}/${entrypoint}`],
       bundle: true,
@@ -18,7 +20,7 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
       format: "esm",
       outfile: `${packageDir}/dist/bundle.mjs`,
       banner: {
-        js: "#!/usr/bin/env node"
+        js: "#!/usr/bin/env node",
       },
       plugins: [
         {
@@ -29,7 +31,7 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
               callback: (args: {
                 path: string;
                 importer?: string;
-              }) => { path: string; external: boolean } | null
+              }) => { path: string; external: boolean } | null,
             ) => void;
           }) {
             build.onResolve(
@@ -66,7 +68,7 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
                 console.log("  → Excluding third-party package");
                 externalDeps.add(args.path);
                 return { path: args.path, external: true };
-              }
+              },
             );
           },
         },
@@ -75,6 +77,10 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
     });
 
     console.log("✅ Bundle created successfully!");
+
+    // Copy existing TypeScript declarations from JSR package
+    console.log("🔨 Copying TypeScript declarations...");
+    await copyTypeScriptDeclarations(packageDir, entrypoint);
 
     // Make the bundle executable if it has a shebang
     try {
@@ -93,11 +99,11 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
 
     const externalDepsArray = Array.from(externalDeps);
     console.log(
-      `📦 Collected ${externalDepsArray.length} external dependencies:`
+      `📦 Collected ${externalDepsArray.length} external dependencies:`,
     );
     externalDepsArray.forEach((dep) => console.log(`  - ${dep}`));
 
-    await generatePackageJson(packageDir, externalDepsArray);
+    await generatePackageJson(packageDir, externalDepsArray, entrypoint);
   } catch (_error) {
     console.error("❌ Build failed:", _error);
     throw _error;
@@ -106,23 +112,19 @@ async function bundleWithJSROnly(packageDir: string, entrypoint: string) {
   console.log("✅ JSR-only bundling completed!");
 }
 
-async function generatePackageJson(packageDir: string, externalDeps: string[]) {
+async function generatePackageJson(packageDir: string, externalDeps: string[], entrypoint: string) {
   console.log("\n📋 Generating package.json with external dependencies...");
 
   const distPackageJsonPath = `${packageDir}/dist/package.json`;
-  try {
-    await Deno.stat(distPackageJsonPath);
-    console.log("✅ Found existing package.json in dist directory, keeping it");
-    return;
-  } catch (_error) {
-    console.log("📋 No existing package.json in dist, creating new one...");
-  }
+  
+  // Always regenerate package.json to ensure it has the correct fields including 'types'
+  console.log("📋 Generating new package.json with all required fields...");
 
   // Read original JSR package's package.json
   let originalPackageJson: Record<string, unknown> = {};
   try {
     const originalPackageJsonContent = await Deno.readTextFile(
-      `${packageDir}/package.json`
+      `${packageDir}/package.json`,
     );
     originalPackageJson = JSON.parse(originalPackageJsonContent);
     console.log("✅ Found original package.json in JSR package");
@@ -142,7 +144,7 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
 
   try {
     const packageLockContent = await Deno.readTextFile(
-      `${Deno.cwd()}/package-lock.json`
+      `${Deno.cwd()}/package-lock.json`,
     );
     packageLock = JSON.parse(packageLockContent);
   } catch (error) {
@@ -191,7 +193,7 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
       const nodeModulesIndex = pkgPath.lastIndexOf("node_modules/");
       if (nodeModulesIndex !== -1) {
         const afterNodeModules = pkgPath.substring(
-          nodeModulesIndex + "node_modules/".length
+          nodeModulesIndex + "node_modules/".length,
         );
         const pathParts = afterNodeModules.split("/");
 
@@ -231,20 +233,57 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
 
   // Set new/correct fields
   newPackageJson.type = "module";
+  newPackageJson.main = "./bundle.mjs";
+  
+  // Set types field based on entrypoint file in types/ directory
+  const entrypointDtsFile = entrypoint.replace(/\.(ts|js)$/, '.d.ts');
+  try {
+    await Deno.stat(`${packageDir}/dist/types/${entrypointDtsFile}`);
+    newPackageJson.types = `./types/${entrypointDtsFile}`;
+    console.log(`  📝 Using types/${entrypointDtsFile} as types entry point`);
+  } catch {
+    // Fallback to mod.d.ts if entrypoint .d.ts doesn't exist
+    try {
+      await Deno.stat(`${packageDir}/dist/types/mod.d.ts`);
+      newPackageJson.types = "./types/mod.d.ts";
+      console.log("  📝 Using types/mod.d.ts as types entry point");
+    } catch {
+      // Final fallback to any .d.ts file in types/
+      try {
+        const typesDir = `${packageDir}/dist/types`;
+        const distFiles = [];
+        for await (const entry of Deno.readDir(typesDir)) {
+          if (entry.isFile && entry.name.endsWith('.d.ts')) {
+            distFiles.push(entry.name);
+          }
+        }
+        
+        if (distFiles.length > 0) {
+          newPackageJson.types = `./types/${distFiles[0]}`;
+          console.log(`  📝 Using types/${distFiles[0]} as types entry point`);
+        } else {
+          console.log("  ⚠️ No .d.ts files found in types/, omitting types field");
+        }
+      } catch {
+        console.log("  ⚠️ Could not check for .d.ts files in types/, omitting types field");
+      }
+    }
+  }
+  
   newPackageJson.dependencies = dependencies;
   newPackageJson.scripts = {
     start: "node bundle.mjs",
   };
 
-  // Handle exports
-  const newExports: Record<string, string> = {};
-  newExports["."] = "./bundle.mjs"; // Main entry point
-
-  // If original had a bin export, preserve it and point to bundle
-  const originalExports = originalPackageJson.exports as
-    | Record<string, unknown>
-    | undefined;
-  if (originalExports && originalExports["./bin"]) {
+  // Handle exports (support types for ESM/TS)
+  const newExports: Record<string, unknown> = {};
+  // Main entry with types
+  newExports["."] = {
+    import: "./bundle.mjs",
+    types: newPackageJson.types,
+  };
+  newExports["./types/*"] = "./types/*";
+  if (originalPackageJson.bin) {
     newExports["./bin"] = "./bundle.mjs";
   }
   newPackageJson.exports = newExports;
@@ -252,27 +291,76 @@ async function generatePackageJson(packageDir: string, externalDeps: string[]) {
   // If original had a bin field, preserve it and point to bundle
   if (originalPackageJson.bin) {
     const newBin: Record<string, string> = {};
-    for (const key of Object.keys(
-      originalPackageJson.bin as Record<string, string>
-    )) {
+    for (
+      const key of Object.keys(
+        originalPackageJson.bin as Record<string, string>,
+      )
+    ) {
       newBin[key] = "./bundle.mjs";
     }
     newPackageJson.bin = newBin;
   }
 
+  // @ts-ignore - name exists in originalPackageJson
+  newPackageJson.name = "@jsr2npm/" + originalPackageJson.name.split("/").pop();
+
   const newPackageJsonContent = JSON.stringify(newPackageJson, null, 2);
   await Deno.writeTextFile(
     `${packageDir}/dist/package.json`,
-    newPackageJsonContent
+    newPackageJsonContent,
   );
 
   console.log(
     `✅ Generated package.json based on original JSR package with ${
       Object.keys(dependencies).length
-    } external dependencies`
+    } external dependencies`,
   );
   console.log(`📄 package.json created at: ${packageDir}/dist/package.json`);
 }
+
+async function copyTypeScriptDeclarations(packageDir: string, entrypoint: string) {
+  console.log(`  📝 Copying TypeScript declarations from _dist...`);
+  
+  try {
+    const distDirPath = `${packageDir}/_dist`;
+    
+    // Check if _dist directory exists
+    await Deno.stat(distDirPath);
+    console.log(`  📁 Found _dist directory, copying all contents...`);
+    
+    // Create types directory in our dist folder
+    const typesDir = `${packageDir}/dist/types`;
+    await Deno.mkdir(typesDir, { recursive: true });
+    
+    // Copy entire _dist directory contents to our dist/types directory
+    for await (const entry of Deno.readDir(distDirPath)) {
+      const sourcePath = `${distDirPath}/${entry.name}`;
+      const targetPath = `${typesDir}/${entry.name}`;
+      
+      if (entry.isFile) {
+        await Deno.copyFile(sourcePath, targetPath);
+        console.log(`  ✅ Copied ${entry.name} to types/`);
+      } else if (entry.isDirectory) {
+        // Recursively copy subdirectories if needed
+        await Deno.mkdir(targetPath, { recursive: true });
+        for await (const subEntry of Deno.readDir(sourcePath)) {
+          if (subEntry.isFile) {
+            await Deno.copyFile(`${sourcePath}/${subEntry.name}`, `${targetPath}/${subEntry.name}`);
+          }
+        }
+        console.log(`  ✅ Copied directory ${entry.name} to types/`);
+      }
+    }
+    
+    console.log(`  ✅ TypeScript declarations copied successfully to types/ folder`);
+    
+  } catch (error) {
+    console.warn("⚠️ Failed to copy _dist directory:", error);
+    console.log("  ⚠️ No TypeScript declarations could be copied");
+  }
+}
+
+
 
 async function copyExtraFiles(sourceDir: string, targetDir: string) {
   console.log(`\n📄 Copying extra files from ${sourceDir} to ${targetDir}...`);
@@ -364,8 +452,9 @@ async function main() {
     console.log(`✅ Working in: ${Deno.cwd()}`);
 
     // Step 1: Add JSR package using npx jsr add
-    const packageWithVersion =
-      version === "latest" ? packageName : `${packageName}@${version}`;
+    const packageWithVersion = version === "latest"
+      ? packageName
+      : `${packageName}@${version}`;
     // Create an empty package.json file before adding the JSR package
     const packageJsonPath = `${Deno.cwd()}/package.json`;
     await Deno.writeTextFile(packageJsonPath, "{}");
@@ -402,10 +491,13 @@ async function main() {
 
     console.log("\n✅ Conversion completed successfully!");
     console.log(
-      `📦 Bundle created at: ${Deno.cwd()}/${packageDir}/dist/bundle.mjs`
+      `📦 Bundle created at: ${Deno.cwd()}/${packageDir}/dist/bundle.mjs`,
     );
     console.log(
-      `📄 Dependencies package.json created at: ${Deno.cwd()}/${packageDir}/dist/package.json`
+      `� TypeScript declarations created at: ${Deno.cwd()}/${packageDir}/dist/bundle.d.ts`,
+    );
+    console.log(
+      `�📄 Dependencies package.json created at: ${Deno.cwd()}/${packageDir}/dist/package.json`,
     );
     console.log(`📂 Conversion folder: ${folderName}`);
 
@@ -419,7 +511,9 @@ async function main() {
     const targetPackageJsonPath = `${targetDistPath}/package.json`;
     try {
       existingPackageJson = await Deno.readTextFile(targetPackageJsonPath);
-      console.log("📋 Found existing package.json in target dist, will preserve it");
+      console.log(
+        "📋 Found existing package.json in target dist, will be replaced with new one",
+      );
     } catch {
       // No existing package.json, which is fine
     }
@@ -434,11 +528,8 @@ async function main() {
 
     await Deno.rename(sourceDistPath, targetDistPath);
 
-    // Restore existing package.json if it existed
-    if (existingPackageJson) {
-      await Deno.writeTextFile(targetPackageJsonPath, existingPackageJson);
-      console.log("✅ Restored existing package.json in target dist");
-    }
+    // Don't restore existing package.json - use the new one we generated
+    console.log("✅ Using newly generated package.json with correct types field");
 
     // Step 6: Copy extra files like README and LICENSE
     await copyExtraFiles(packageDir, targetDistPath);
