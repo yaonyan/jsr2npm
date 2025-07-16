@@ -1,16 +1,18 @@
 # GPT-Vis MCP Server
 
-A **local wrapper** for
+A **local/private-favored wrapper** for
 [antvis/mcp-server-chart](https://github.com/antvis/mcp-server-chart) that
 generates charts locally without external server dependencies.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://img.shields.io/npm/v/@jsr2npm/yao__gpt-vis-mcp.svg)](https://www.npmjs.com/package/@jsr2npm/yao__gpt-vis-mcp)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-Compatible-blue.svg)](https://modelcontextprotocol.io/)
 
 ## ✨ Features
 
 - 🔒 **Private & Secure**: Local chart generation, no external dependencies
 - 🚀 **Easy Setup**: One command installation for Claude Desktop
-- 🎨 **Rich Charts**: 25+ chart types (pie, line, bar, radar, maps, etc.)
+- 🎨 **Rich Charts**: 20+ chart types (pie, line, bar, radar, maps, etc.)
 - 📊 **Enterprise Ready**: Perfect for secure environments
 
 ## 🚀 Usage
@@ -26,14 +28,13 @@ Add to your Claude Desktop MCP settings:
   "mcpServers": {
     "gpt-vis-mcp": {
       "command": "npx",
-      "args": ["@jsr2npm/yao__gpt-vis-mcp@0.0.3"]
+      "args": ["@jsr2npm/yao__gpt-vis-mcp@latest"]
     }
   }
 }
 ```
 
-You may experience `canvas` dependencies issue when using npx, if so, try option
-2
+You may experience `canvas` dependency issues and font rendering issues when using npx. If so, try option 2.
 
 **Option 2: Docker**
 
@@ -42,7 +43,14 @@ You may experience `canvas` dependencies issue when using npx, if so, try option
   "mcpServers": {
     "gpt-vis-mcp": {
       "command": "docker",
-      "args": ["run", "--rm", "ghcr.io/yaonyan/gpt-vis-mcp:latest-mcp"]
+      "args": [
+        "run",
+        "--interactive",
+        "--rm",
+        "-v",
+        "/tmp/gpt-vis-charts:/tmp/gpt-vis-charts",
+        "ghcr.io/yaonyan/gpt-vis-mcp:latest-mcp"
+      ]
     }
   }
 }
@@ -57,24 +65,39 @@ Set environment variables as needed:
 
 ### Docker SSR Server
 
+We also provide an SSR Server that follows the requirements of https://github.com/antvis/mcp-server-chart?tab=readme-ov-file#-private-deployment
+
 ```bash
 # Run SSR API server
-docker run -p 3000:3000 ghcr.io/yaonyan/gpt-vis-mcp:latest-http
+docker run -p 3000:3000 -e RENDERED_IMAGE_HOST_PATH=http://localhost:3000/charts ghcr.io/yaonyan/gpt-vis-mcp:latest-http
 
 # Test the SSR API
-curl -X POST http://localhost:3000/generate \
-  -H "Content-Type: application/json" \
-  -d '{"type": "pie", "data": [{"category": "A", "value": 30}, {"category": "B", "value": 70}]}'
+❯ curl -X POST http://localhost:3000/generate \
+             -H "Content-Type: application/json" \
+             -d '{"type": "pie", "data": [{"category": "A", "value": 30}, {"category": "B", "value": 70}]}'
+{"success":true,"resultObj":"http://localhost:3000/charts/chart_1750500506056_T6IC0Vtp.png"}
 ```
 
-### Binary
+You can then use the SSR server with the upstream `@antv/mcp-server-chart` by specifying the `VIS_REQUEST_SERVER` environment variable:
 
-```bash
-# Download binary from releases
-curl -L https://github.com/yaonyan/gpt-vis-mcp/releases/latest/download/gpt-vis-mcp -o gpt-vis-mcp
-chmod +x gpt-vis-mcp
-./gpt-vis-mcp
+```json
+{
+  "mcpServers": {
+    "mcp-server-chart": {
+      "command": "npx",
+      "args": ["-y", "@antv/mcp-server-chart"],
+      "env": {
+        "VIS_REQUEST_SERVER": "http://localhost:3000/generate"
+      }
+    }
+  }
+}
 ```
+
+This allows you to use the original MCP server while leveraging your private SSR endpoint for chart generation.
+
+![VIS_REQUEST_SERVER example](https://github.com/user-attachments/assets/b763566a-f186-4203-a8e1-ea7df1aa7e30)
+
 
 ## 🤝 Contributing
 

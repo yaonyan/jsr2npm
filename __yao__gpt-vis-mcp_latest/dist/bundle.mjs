@@ -1260,63 +1260,50 @@ var config = {
   renderedImageHostPath: process5.env.RENDERED_IMAGE_HOST_PATH
 };
 async function initializeImageDirectory() {
+  console.log(`\u{1F50D} Checking image directory: ${config.renderedImagePath}`);
   try {
     await access(config.renderedImagePath, constants.F_OK);
+    console.log("\u2705 Image directory already exists");
   } catch {
+    console.log("\u{1F4C1} Image directory does not exist, creating...");
     try {
       await mkdir(config.renderedImagePath, {
         recursive: true
       });
+      console.log("\u2705 Image directory created successfully");
     } catch (error) {
       console.error(`\u274C Failed to create directory ${config.renderedImagePath}:`, error);
       throw new Error(`Failed to initialize image directory: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
-try {
-  await initializeImageDirectory();
-} catch (error) {
-  console.error("\u274C Startup failed:", error);
-  process5.exit(1);
-}
-var tools = await composeMcpDepTools({
-  mcpServers: {
-    "mcp-server-chart": {
-      command: "npx",
-      args: [
-        "-y",
-        "@antv/mcp-server-chart"
-      ]
-    }
-  }
-});
-var server = new ComposableMCPServer({
-  name: "gpt-vis-mcp",
-  version: "0.0.3"
-}, {
-  capabilities: {
-    tools: {}
-  }
-});
 function generateImageFilename() {
   const id = generateId3(8);
   const timestamp = Date.now();
   return `chart_${timestamp}_${id}.png`;
 }
-function generateImageResponse(filename) {
-  const fullPath = join(config.renderedImagePath, filename);
+function generateImageResponse(filename, forHttp = false) {
   if (config.renderedImageHostPath) {
     return `${config.renderedImageHostPath}/${filename}`;
   }
-  return fullPath;
+  if (forHttp) {
+    return `/charts/${filename}`;
+  }
+  return join(config.renderedImagePath, filename);
 }
 async function generateChart(options) {
+  const startTime = Date.now();
+  console.log(`\u{1F3A8} Starting chart generation: type=${options.type}`);
   try {
+    console.log("\u{1F504} Rendering chart with GPT-Vis SSR...");
     const vis = await render(options);
     const filename = generateImageFilename();
     const fullPath = join(config.renderedImagePath, filename);
-    await vis.exportToFile(fullPath, {});
+    console.log(`\u{1F4BE} Saving chart to: ${filename}`);
+    vis.exportToFile(fullPath, {});
     const imageUrl = generateImageResponse(filename);
+    const duration = Date.now() - startTime;
+    console.log(`\u2705 Chart generated successfully in ${duration}ms: ${imageUrl}`);
     return {
       isError: false,
       content: [
@@ -1327,8 +1314,9 @@ async function generateChart(options) {
       ]
     };
   } catch (error) {
+    const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`\u274C Chart generation failed:`, errorMessage);
+    console.error(`\u274C Chart generation failed after ${duration}ms:`, errorMessage);
     return {
       isError: true,
       content: [
@@ -1340,14 +1328,53 @@ async function generateChart(options) {
     };
   }
 }
+console.log("\u{1F680} Initializing GPT-Vis MCP Server...");
+console.log(`\u{1F4C1} Image directory: ${config.renderedImagePath}`);
+if (config.renderedImageHostPath) {
+  console.log(`\u{1F310} Host path: ${config.renderedImageHostPath}`);
+}
+try {
+  await initializeImageDirectory();
+  console.log("\u2705 Image directory initialized successfully");
+} catch (error) {
+  console.error("\u274C Startup failed:", error);
+  process5.exit(1);
+}
+console.log("\u{1F527} Composing MCP tools from upstream chart server...");
+var tools = await composeMcpDepTools({
+  mcpServers: {
+    "mcp-server-chart": {
+      command: "npx",
+      args: [
+        "-y",
+        "@antv/mcp-server-chart@0.7.1"
+      ]
+    }
+  }
+});
+console.log(`\u{1F4CA} Discovered ${Object.keys(tools).length} tools from upstream server`);
+console.log("\u{1F3D7}\uFE0F  Creating MCP server instance...");
+var server = new ComposableMCPServer({
+  name: "gpt-vis-mcp",
+  version: "0.0.5"
+}, {
+  capabilities: {
+    tools: {}
+  }
+});
+console.log("\u2705 MCP server instance created successfully");
 var registerToolWithLocalExecutor = (tool) => {
   const { name, description, inputSchema } = tool;
   if (CHART_TYPE_UNSUPPORTED.includes(name)) {
+    console.log(`\u26A0\uFE0F  Skipping unsupported chart type: ${name}`);
     return;
   }
+  console.log(`\u{1F527} Registering tool: ${name}`);
   server.tool(name, description, jsonSchema3(inputSchema), async (context) => {
+    console.log(`\u{1F680} Executing tool: ${name}`);
     try {
       const { data } = context;
+      console.log(`\u{1F4DD} Processing data for ${name}:`, Object.keys(data).length, "fields");
       const type = CHART_TYPE_MAP[name];
       if (!type) {
         throw new Error(`Unknown chart type for tool: ${name}`);
@@ -1373,7 +1400,12 @@ var registerToolWithLocalExecutor = (tool) => {
   });
 };
 var supportedTools = Object.values(tools).filter((tool) => !CHART_TYPE_UNSUPPORTED.includes(tool.name));
+console.log(`\u{1F4E6} Registering ${supportedTools.length} supported tools out of ${Object.keys(tools).length} total tools`);
+console.log(`\u{1F6AB} Skipping ${CHART_TYPE_UNSUPPORTED.length} unsupported tools:`, CHART_TYPE_UNSUPPORTED.join(", "));
 supportedTools.forEach(registerToolWithLocalExecutor);
+console.log("\u{1F389} GPT-Vis MCP Server initialization completed successfully!");
+console.log(`\u{1F527} Total registered tools: ${supportedTools.length}`);
+console.log("\u{1F7E2} Server is ready to handle chart generation requests");
 
 // node_modules/@yao/gpt-vis-mcp/stdio.server.ts
 var transport = new StdioServerTransport();

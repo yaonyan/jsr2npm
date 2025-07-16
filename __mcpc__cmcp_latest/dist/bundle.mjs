@@ -189,28 +189,7 @@ var ClientExecServer = class {
     }
     clearTimeout(pending.timeout);
     this.pendingRequests.delete(params.id);
-    if (params.success) {
-      const result = {
-        content: [
-          {
-            type: "text",
-            text: typeof params.result === "string" ? params.result : JSON.stringify(params.result, null, 2)
-          }
-        ]
-      };
-      pending.resolve(result);
-    } else {
-      const errorResult = {
-        content: [
-          {
-            type: "text",
-            text: `Tool execution failed: ${params.error || "Unknown error"}`
-          }
-        ],
-        isError: true
-      };
-      pending.resolve(errorResult);
-    }
+    pending.resolve(params.result);
     return {
       status: "received"
     };
@@ -439,6 +418,175 @@ var ClientExecClient = class {
 };
 function createClientExecClient(client, clientId) {
   return new ClientExecClient(client, clientId);
+}
+
+// node_modules/@mcpc/cmcp/decorators/client_exec_client_next.js
+import { CallToolRequestSchema as CallToolRequestSchema2, isJSONRPCRequest, isJSONRPCResponse } from "@modelcontextprotocol/sdk/types.js";
+import { z as z3 } from "zod";
+var ExecuteToolNotificationSchema2 = z3.object({
+  method: z3.literal("proxy/execute_tool"),
+  params: z3.object({
+    id: z3.string(),
+    toolName: z3.string(),
+    args: z3.record(z3.unknown()),
+    clientId: z3.string()
+  })
+});
+var ToolResponseResultSchema2 = z3.object({
+  status: z3.string()
+});
+var ClientToolRegistrationResultSchema2 = z3.object({
+  status: z3.string(),
+  registeredTools: z3.array(z3.string()),
+  conflicts: z3.array(z3.string()).optional()
+});
+var ToolAugmentingClient = class {
+  client;
+  clientId;
+  tools = /* @__PURE__ */ new Map();
+  toolDefinitions = [];
+  constructor(client, clientId) {
+    this.client = client;
+    this.clientId = clientId;
+    this.client.setNotificationHandler(ExecuteToolNotificationSchema2, (notification) => this.handleExecutionNotification(notification.params));
+    return new Proxy(this, {
+      get(target, prop) {
+        if (prop in target) {
+          return target[prop];
+        }
+        const serverProp = target.client[prop];
+        if (typeof serverProp === "function") {
+          return serverProp.bind(target.client);
+        }
+        return serverProp;
+      }
+    });
+  }
+  /**
+   * Register tools (store locally, will be sent to server on connect)
+   */
+  registerTools(tools) {
+    this.toolDefinitions = tools;
+    for (const tool of tools) {
+      this.tools.set(tool.name, tool.implementation);
+    }
+  }
+  /**
+   * Intercept incoming tools
+   */
+  interceptIncomingResponse(message, extra, originalOnMessage) {
+    if (isJSONRPCResponse(message) && message.result.tools) {
+      message.result.tools = message.result.tools.concat(this.toolDefinitions);
+    }
+    originalOnMessage?.(message, extra);
+  }
+  /**
+   * Intercept outgoing tool calls
+   */
+  interceptOutgoingRequest(message, options, originalSend, originalOnMessage) {
+    if (isJSONRPCRequest(message) && message.method === CallToolRequestSchema2.shape.method.value) {
+      const handler = this.tools.get(message.params.name);
+      if (handler) {
+        const resultOrPromise = handler(message.params.arguments);
+        return Promise.resolve(resultOrPromise).then((result) => {
+          originalOnMessage?.({
+            id: message.id,
+            jsonrpc: "2.0",
+            result
+          });
+        });
+      }
+    }
+    originalSend(message, options);
+  }
+  /**
+   * Override connect method to register tools after connection
+   */
+  async connect(transport) {
+    await this.client.connect(transport);
+    const originalOnMessage = transport.onmessage?.bind(transport);
+    const originalSend = transport.send.bind(transport);
+    transport.send = (message, options) => {
+      return Promise.resolve(this.interceptOutgoingRequest(message, options, originalSend, originalOnMessage));
+    };
+    transport.onmessage = (message, extra) => {
+      this.interceptIncomingResponse(message, extra, originalOnMessage);
+    };
+  }
+  /**
+   * Register tools to server
+   */
+  async registerToolsToServer() {
+    try {
+      const toolSchemas = this.toolDefinitions.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema
+      }));
+      const result = await this.client.request({
+        method: "client/register_tools",
+        params: {
+          clientId: this.clientId,
+          tools: toolSchemas
+        }
+      }, ClientToolRegistrationResultSchema2);
+      if (result.conflicts && result.conflicts.length > 0) {
+        console.warn(`Tool registration conflicts for ${result.conflicts.length} tools:`, result.conflicts);
+      }
+    } catch (error) {
+      console.error("Failed to register tools to server:", error);
+      throw error;
+    }
+  }
+  /**
+   * Handle tool execution notification from server
+   */
+  async handleExecutionNotification(params) {
+    if (params.clientId !== this.clientId) {
+      console.warn(`Received execution request for different client: ${params.clientId}, expected: ${this.clientId}`);
+      return;
+    }
+    let result;
+    let error;
+    let success = false;
+    try {
+      const implementation = this.tools.get(params.toolName);
+      if (!implementation) {
+        throw new Error(`Tool ${params.toolName} not found in client ${this.clientId}`);
+      }
+      result = await implementation(params.args);
+      success = true;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    try {
+      await this.client.request({
+        method: "proxy/tool_response",
+        params: {
+          id: params.id,
+          success,
+          result,
+          error
+        }
+      }, ToolResponseResultSchema2);
+    } catch (responseError) {
+      console.error("Failed to send tool response:", responseError);
+    }
+  }
+  /**
+   * Get client status
+   */
+  getStatus() {
+    return {
+      clientId: this.clientId,
+      toolCount: this.tools.size,
+      tools: Array.from(this.tools.keys()),
+      registeredToServer: this.toolDefinitions.length > 0
+    };
+  }
+};
+function createToolAugmentingClient(client, clientId) {
+  return new ToolAugmentingClient(client, clientId);
 }
 
 // node_modules/@mcpc/cmcp/transports/server/sse.js
@@ -774,10 +922,12 @@ export {
   ClientExecClient,
   ClientExecServer,
   SSEServerTransport,
+  ToolAugmentingClient,
   WorkerServerTransport,
   WorkerTransport,
   createClientExecClient,
   createClientExecServer,
+  createToolAugmentingClient,
   handleConnecting,
   handleIncoming,
   runClientExecServerWoker

@@ -1,12 +1,10 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResultSchema, Tool } from "@modelcontextprotocol/sdk/types.js";
+import type z from "zod";
 /**
  * Defines the structure for a tool that can be executed on the client.
  * It extends the base 'Tool' type and adds the client-side implementation.
- */ export interface ClientToolDefinition<TArgs extends Record<string, unknown> = Record<string, unknown>, TResult = unknown> extends Tool {
-  /**
-   * The client-side function that executes the tool's logic.
-   * The 'name', 'description', and 'inputSchema' properties are inherited from the base MCP Tool interface.
-   */ implementation: (args: TArgs) => Promise<TResult> | TResult;
+ */ export interface ClientToolDefinition<TArgs extends Record<string, unknown> = Record<string, unknown>, TResult = z.infer<typeof CallToolResultSchema>> extends Tool {
+  implementation: (args: TArgs) => Promise<TResult> | TResult;
 }
 interface MessageBase {
   type: string;
