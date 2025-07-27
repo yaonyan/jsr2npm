@@ -4,7 +4,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 // node_modules/@yao/gpt-vis-mcp/app.js
-import { render } from "@antv/gpt-vis-ssr";
+import { render } from "@yaonyan/gpt-vis-ssr-napi-rs";
 
 // node_modules/@jsr/mcpc__core/src/compose.js
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
