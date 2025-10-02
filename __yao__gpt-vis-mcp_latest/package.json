@@ -1,5 +1,0 @@
-{
-  "dependencies": {
-    "@yao/gpt-vis-mcp": "npm:@jsr/yao__gpt-vis-mcp@^0.1.0"
-  }
-}

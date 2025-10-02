@@ -1,1 +1,5 @@
 node_modules
+__*_latest/
+__*_*/
+*.log
+package-lock.json
