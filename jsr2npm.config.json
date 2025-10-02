@@ -59,6 +59,22 @@
       }
     },
     {
+      "name": "@mcpc/cli",
+      "version": "0.1.1",
+      "entrypoints": [
+        {
+          "input": "src/bin.ts",
+          "output": "src/bin.mjs",
+          "type": "bin",
+          "binName": "mcpc"
+        }
+      ],
+      "packageJson": {
+        "name": "@mcpc-tech/cli",
+          "version": "0.1.1-beta.5"
+      }
+    },
+    {
       "name": "@yao/gpt-vis-mcp",
       "version": "0.1.1-beta.1",
       "entrypoints": [
