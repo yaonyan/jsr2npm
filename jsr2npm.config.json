@@ -1,8 +1,8 @@
 {
   "packages": [
     {
-      "name": "@yaonyan/jsr2npm",
-      "version": "0.1.0",
+      "name": "@yao/jsr2npm",
+      "version": "latest",
       "bin": {
         "jsr2npm": "cli.ts"
       },

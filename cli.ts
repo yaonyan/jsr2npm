@@ -43,12 +43,12 @@ async function main() {
         pkg.name,
         pkg.version,
         pkg.bin,
-        pkg.packageJson
+        pkg.packageJson,
       );
     } catch (error) {
       console.error(
         `\n❌ Failed to convert ${pkg.name}:`,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }

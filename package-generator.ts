@@ -5,21 +5,31 @@ type PackageJson = Record<string, unknown>;
 export async function generatePackageJson(
   packageDir: string,
   bin?: Record<string, string>,
-  overrides?: PackageOverrides
+  overrides?: PackageOverrides,
 ) {
   console.log("\n📋 Generating package.json...");
 
   const jsrPkg = await readPackageJson(`${packageDir}/package.json`);
   const denoJson = await readDenoJson(packageDir);
   const dependencies = getNpmDependencies(jsrPkg.dependencies);
-  const newPkg = buildPackageJson(jsrPkg, denoJson, dependencies, bin, overrides);
-  
-  await Deno.writeTextFile(
-    `${packageDir}/dist/package.json`,
-    JSON.stringify(newPkg, null, 2)
+  const newPkg = buildPackageJson(
+    jsrPkg,
+    denoJson,
+    dependencies,
+    bin,
+    overrides,
   );
 
-  console.log(`✅ Generated package.json with ${Object.keys(dependencies).length} dependencies`);
+  await Deno.writeTextFile(
+    `${packageDir}/dist/package.json`,
+    JSON.stringify(newPkg, null, 2),
+  );
+
+  console.log(
+    `✅ Generated package.json with ${
+      Object.keys(dependencies).length
+    } dependencies`,
+  );
 }
 
 async function readPackageJson(path: string): Promise<PackageJson> {
@@ -46,7 +56,7 @@ async function readDenoJson(packageDir: string): Promise<PackageJson> {
 
 function getNpmDependencies(deps: unknown): Record<string, string> {
   if (!deps || typeof deps !== "object") return {};
-  
+
   const npmDeps: Record<string, string> = {};
   for (const [name, version] of Object.entries(deps)) {
     if (!name.startsWith("@jsr/")) {
@@ -62,17 +72,17 @@ function buildPackageJson(
   denoJson: PackageJson,
   dependencies: Record<string, string>,
   bin?: Record<string, string>,
-  overrides?: PackageOverrides
+  overrides?: PackageOverrides,
 ): PackageJson {
-  const pkg: PackageJson = { 
-    ...jsrPkg, 
-    type: "module", 
-    dependencies 
+  const pkg: PackageJson = {
+    ...jsrPkg,
+    type: "module",
+    dependencies,
   };
 
   mergeMetadata(pkg, denoJson);
   addBugsUrl(pkg);
-  
+
   delete pkg._jsr_revision;
   delete pkg.devDependencies;
 
@@ -88,11 +98,13 @@ function buildPackageJson(
 
 function mergeMetadata(pkg: PackageJson, denoJson: PackageJson) {
   const fields = ["description", "author", "license", "repository", "keywords"];
-  
+
   for (const field of fields) {
     if (denoJson[field] && !pkg[field]) {
       pkg[field] = denoJson[field];
-      const extra = field === "keywords" ? ` (${(denoJson[field] as string[]).length} items)` : "";
+      const extra = field === "keywords"
+        ? ` (${(denoJson[field] as string[]).length} items)`
+        : "";
       console.log(`  📝 Using ${field} from deno.json${extra}`);
     }
   }
@@ -100,22 +112,22 @@ function mergeMetadata(pkg: PackageJson, denoJson: PackageJson) {
 
 function addBugsUrl(pkg: PackageJson) {
   if (!pkg.repository || pkg.bugs) return;
-  
-  const repoUrl = typeof pkg.repository === 'string' 
-    ? pkg.repository 
+
+  const repoUrl = typeof pkg.repository === "string"
+    ? pkg.repository
     : (pkg.repository as { url?: string })?.url;
-    
+
   if (!repoUrl) return;
-  
-  const cleanUrl = repoUrl.replace(/^git\+/, '').replace(/\.git$/, '');
+
+  const cleanUrl = repoUrl.replace(/^git\+/, "").replace(/\.git$/, "");
   pkg.bugs = { url: `${cleanUrl}/issues` };
   console.log(`  🐛 Added bugs URL`);
 }
 
 function buildExports(
-  pkg: PackageJson, 
-  denoJson: PackageJson, 
-  bin?: Record<string, string>
+  pkg: PackageJson,
+  denoJson: PackageJson,
+  bin?: Record<string, string>,
 ) {
   if (bin && Object.keys(bin).length > 0) {
     buildBinExports(pkg, bin);
@@ -130,54 +142,68 @@ function buildExports(
 function buildBinExports(pkg: PackageJson, bin: Record<string, string>) {
   const binCommands: Record<string, string> = {};
   const exports: Record<string, unknown> = {};
-  
+
   for (const cmdName of Object.keys(bin)) {
     binCommands[cmdName] = `./bin/${cmdName}.mjs`;
     exports[`./bin/${cmdName}`] = `./bin/${cmdName}.mjs`;
   }
-  
+
   pkg.bin = binCommands;
   const firstCmd = Object.keys(bin)[0];
   exports["."] = `./bin/${firstCmd}.mjs`;
   pkg.exports = exports;
   pkg.main = `./bin/${firstCmd}.mjs`;
-  
-  console.log(`  🔧 Added bin commands: ${Object.keys(binCommands).join(", ")}`);
+
+  console.log(
+    `  🔧 Added bin commands: ${Object.keys(binCommands).join(", ")}`,
+  );
 }
 
 function buildLibraryExports(pkg: PackageJson, denoJson: PackageJson) {
   const exports: Record<string, unknown> = {};
   const denoExports = denoJson.exports as Record<string, unknown>;
-  
+
   for (const [key, value] of Object.entries(denoExports)) {
-    const tsPath = typeof value === 'string' ? value : null;
+    const tsPath = typeof value === "string" ? value : null;
     if (!tsPath) continue;
-    
-    const mjsFile = key === "." ? "index.mjs" : `${key.replace(/^\.\//, "")}.mjs`;
+
+    const mjsFile = key === "."
+      ? "index.mjs"
+      : `${key.replace(/^\.\//, "")}.mjs`;
     const dtsFile = tsPath.replace(/\.ts$/, ".d.ts").replace(/^\.\//, "");
-    
+
     exports[key] = {
       types: `./types/${dtsFile}`,
-      import: `./${mjsFile}`
+      import: `./${mjsFile}`,
     };
   }
-  
+
   exports["./types/*"] = "./types/*";
   pkg.exports = exports;
-  
+
   const mainExport = exports["."];
-  if (mainExport && typeof mainExport === 'object' && 'import' in mainExport) {
+  if (mainExport && typeof mainExport === "object" && "import" in mainExport) {
     pkg.main = mainExport.import as string;
   }
-  
-  console.log(`  📦 Built exports for ${Object.keys(denoExports).length} entry points`);
+
+  console.log(
+    `  📦 Built exports for ${Object.keys(denoExports).length} entry points`,
+  );
 }
 
 function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
   if (!overrides) return;
 
-  const fields = ["name", "version", "description", "license", "author", "repository", "homepage"];
-  
+  const fields = [
+    "name",
+    "version",
+    "description",
+    "license",
+    "author",
+    "repository",
+    "homepage",
+  ];
+
   for (const field of fields) {
     const value = overrides[field as keyof PackageOverrides];
     if (value) {
@@ -185,12 +211,14 @@ function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
       console.log(`  ✏️  Overriding ${field}`);
     }
   }
-  
+
   if (overrides.keywords) {
     pkg.keywords = overrides.keywords;
-    console.log(`  ✏️  Overriding keywords (${overrides.keywords.length} items)`);
+    console.log(
+      `  ✏️  Overriding keywords (${overrides.keywords.length} items)`,
+    );
   }
-  
+
   if (overrides.scripts) {
     const existingScripts = (pkg.scripts as Record<string, string>) || {};
     pkg.scripts = { ...existingScripts, ...overrides.scripts };
@@ -200,9 +228,9 @@ function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
 
 export async function copyExtraFiles(sourceDir: string, targetDir: string) {
   console.log("\n📄 Copying extra files...");
-  
+
   const files = ["README.md", "README", "LICENSE", "LICENSE.md"];
-  
+
   for (const file of files) {
     try {
       await Deno.stat(`${sourceDir}/${file}`);

@@ -2,17 +2,19 @@ export async function bundleWithEsbuild(
   packageDir: string,
   inputFile: string,
   outputFile: string,
-  externalPackages: string[] = []
+  externalPackages: string[] = [],
 ): Promise<void> {
   const { build } = await import("npm:esbuild@0.25.5");
 
   const entryPath = `${Deno.cwd()}/${packageDir}/${inputFile}`;
   const outputPath = `${Deno.cwd()}/${packageDir}/dist/${outputFile}`;
   const outputDir = outputPath.split("/").slice(0, -1).join("/");
-  
+
   await Deno.mkdir(outputDir, { recursive: true });
 
-  const externalList = externalPackages.length > 0 ? externalPackages.join(", ") : "none";
+  const externalList = externalPackages.length > 0
+    ? externalPackages.join(", ")
+    : "none";
   console.log(`  📦 External packages: ${externalList}`);
 
   await build({
@@ -51,7 +53,7 @@ export async function copyTypeDeclarations(packageDir: string) {
       } else if (entry.isDirectory) {
         await copyDirectory(source, target);
       }
-      
+
       console.log(`  ✅ Copied ${entry.name}`);
     }
 
@@ -63,11 +65,11 @@ export async function copyTypeDeclarations(packageDir: string) {
 
 async function copyDirectory(source: string, target: string) {
   await Deno.mkdir(target, { recursive: true });
-  
+
   for await (const entry of Deno.readDir(source)) {
     const sourcePath = `${source}/${entry.name}`;
     const targetPath = `${target}/${entry.name}`;
-    
+
     if (entry.isFile) {
       await Deno.copyFile(sourcePath, targetPath);
     } else if (entry.isDirectory) {
