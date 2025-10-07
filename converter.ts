@@ -1,4 +1,4 @@
-import $ from "dax-sh";
+import $ from "npm:dax-sh@^0.43.2";
 import {
   chmod,
   mkdir,
