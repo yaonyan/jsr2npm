@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 export interface PackageOverrides {
   name?: string;
   version?: string;
@@ -24,7 +26,7 @@ export interface Config {
 
 export async function loadConfig(configPath: string): Promise<Config | null> {
   try {
-    const content = await Deno.readTextFile(configPath);
+    const content = await readFile(configPath, "utf-8");
     return JSON.parse(content);
   } catch {
     return null;
