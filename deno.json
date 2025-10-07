@@ -1,13 +1,13 @@
 {
   "name": "@yao/jsr2npm",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "exports": "./cli.ts",
   "tasks": {
     "dev": "deno run --allow-all cli.ts",
     "convert": "deno run --allow-all cli.ts"
   },
   "imports": {
-    "@david/dax": "jsr:@david/dax@^0.43.2"
+    "dax-sh": "npm:dax-sh@^0.43.2"
   },
   "nodeModulesDir": "auto",
   "license": "MIT",
