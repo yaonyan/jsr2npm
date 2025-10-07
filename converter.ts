@@ -1,5 +1,5 @@
 import $ from "jsr:@david/dax";
-import { bundlePackage, bundleMultipleEntrypoints } from "./bundler.ts";
+import { bundleMultipleEntrypoints } from "./bundler.ts";
 import { generatePackageJson, copyExtraFiles } from "./package-generator.ts";
 import type { PackageOverrides, EntrypointConfig } from "./config.ts";
 
@@ -45,20 +45,14 @@ export async function convertPackage(
     
     await Deno.mkdir(`${packageDir}/dist`, { recursive: true });
 
-    // 打包所有入口点
-    const bundleResults = await bundleMultipleEntrypoints(packageDir, normalizedEntrypoints);
-    
-    // 合并所有外部依赖
-    const allExternalDeps = new Set<string>();
-    bundleResults.forEach(result => {
-      result.externalDeps.forEach(dep => allExternalDeps.add(dep));
-    });
+    // Bundle all entrypoints
+    await bundleMultipleEntrypoints(packageDir, normalizedEntrypoints);
 
     await copyExtraFiles(packageDir, `${packageDir}/dist`);
     await generatePackageJson(
       packageDir,
-      Array.from(allExternalDeps),
-      normalizedEntrypoints[0].input, // 主入口点用于类型声明
+      [], // No longer needed, deps are read from JSR package.json
+      normalizedEntrypoints[0].input,
       normalizedEntrypoints,
       overrides
     );

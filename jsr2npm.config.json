@@ -1,64 +1,6 @@
 {
   "packages": [
     {
-      "name": "@mcpc/cmcp",
-      "version": "0.0.3-beta-1",
-      "entrypoints": [
-        {
-          "input": "mod.ts",
-          "output": "mod.mjs",
-          "type": "module"
-        },
-        {
-          "input": "decorators/client_exec_server.ts",
-          "output": "decorators/client_exec_server.mjs",
-          "type": "module"
-        },
-        {
-          "input": "decorators/client_exec_client.ts",
-          "output": "decorators/client_exec_client.mjs",
-          "type": "module"
-        },
-        {
-          "input": "shared/types.ts",
-          "output": "shared/types.mjs",
-          "type": "module"
-        }
-      ],
-      "packageJson": {
-        "name": "@mcpc-tech/cmcp"
-      }
-    },
-    {
-      "name": "@mcpc/core",
-      "version": "0.2.0-beta.10",
-      "entrypoints": [
-        {
-          "input": "mod.ts",
-          "output": "mod.mjs",
-          "type": "module"
-        },
-        {
-          "input": "plugins.ts",
-          "output": "plugins.mjs",
-          "type": "module"
-        },
-        {
-          "input": "src/plugins/search-tool.ts",
-          "output": "src/plugins/search-tool.mjs",
-          "type": "module"
-        },
-        {
-          "input": "src/plugins/large-result.ts",
-          "output": "src/plugins/large-result.mjs",
-          "type": "module"
-        }
-      ],
-      "packageJson": {
-        "name": "@mcpc-tech/core"
-      }
-    },
-    {
       "name": "@mcpc/cli",
       "version": "0.1.1",
       "entrypoints": [
@@ -71,7 +13,7 @@
       ],
       "packageJson": {
         "name": "@mcpc-tech/cli",
-          "version": "0.1.1-beta.5"
+        "version": "0.1.1-beta.5"
       }
     },
     {

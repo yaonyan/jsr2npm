@@ -2,21 +2,20 @@ import type { EntrypointConfig } from "./config.ts";
 
 export interface BundleResult {
   output: string;
-  externalDeps: string[];
 }
 
 /**
- * 打包单个入口点（向后兼容）
+ * Bundle single entrypoint (backwards compatible)
  */
 export async function bundlePackage(packageDir: string, entrypoint: string): Promise<string[]> {
-  const results = await bundleMultipleEntrypoints(packageDir, [
+  await bundleMultipleEntrypoints(packageDir, [
     { input: entrypoint, output: "bundle.mjs", type: "bin" }
   ]);
-  return results[0].externalDeps;
+  return []; // No longer needed, deps are read from package.json
 }
 
 /**
- * 打包多个入口点（新功能）
+ * Bundle multiple entrypoints
  */
 export async function bundleMultipleEntrypoints(
   packageDir: string,
@@ -29,13 +28,10 @@ export async function bundleMultipleEntrypoints(
 
   for (const entry of entrypoints) {
     console.log(`\n📄 Bundling: ${entry.input} → ${entry.output}`);
-    const externalDeps = new Set<string>();
-
-    // Resolve absolute path for entry point
     const entryPath = `${Deno.cwd()}/${packageDir}/${entry.input}`;
     const outputPath = `${Deno.cwd()}/${packageDir}/dist/${entry.output}`;
 
-    // 确保输出目录存在
+    // Ensure output directory exists
     const outputDir = outputPath.split("/").slice(0, -1).join("/");
     await Deno.mkdir(outputDir, { recursive: true });
 
@@ -50,25 +46,22 @@ export async function bundleMultipleEntrypoints(
       banner: isBin ? { js: "#!/usr/bin/env node" } : undefined,
       plugins: [{
         name: "jsr-only",
+        // deno-lint-ignore no-explicit-any
         setup(build: any) {
           build.onResolve({ filter: /.*/ }, (args: { path: string; importer?: string }) => {
-            if (!args.importer) {
-              return null;
-            }
-
+            if (!args.importer) return null;
+            
+            // Bundle JSR dependencies
             if (args.path.startsWith("@jsr/") || args.path.startsWith("jsr:")) {
               return null;
             }
 
+            // Bundle relative imports
             if (args.path.startsWith(".") || args.path.startsWith("/")) {
               return null;
             }
 
-            if (args.path.startsWith("node:")) {
-              return { path: args.path, external: true };
-            }
-
-            externalDeps.add(args.path);
+            // Mark node: and npm packages as external
             return { path: args.path, external: true };
           });
         },
@@ -78,26 +71,20 @@ export async function bundleMultipleEntrypoints(
 
     console.log(`  ✅ Created ${entry.output}`);
 
-    // 如果是 bin 类型，设置可执行权限
+    // Set executable permission for bin files
     if (isBin) {
       await makeExecutable(outputPath);
     }
 
     results.push({
       output: entry.output,
-      externalDeps: Array.from(externalDeps),
     });
   }
 
-  // 复制类型声明（使用第一个入口点）
+  // Copy type declarations for the first entrypoint
   await copyTypeDeclarations(packageDir, entrypoints[0].input);
 
-  // 合并所有外部依赖
-  const allDeps = new Set<string>();
-  results.forEach(r => r.externalDeps.forEach(dep => allDeps.add(dep)));
-  
-  console.log(`\n📦 Collected ${allDeps.size} external dependencies`);
-  allDeps.forEach((dep) => console.log(`  - ${dep}`));
+  console.log(`\n✅ Bundled ${results.length} entrypoint(s)`);
 
   return results;
 }
@@ -115,7 +102,7 @@ async function makeExecutable(bundlePath: string) {
   }
 }
 
-async function copyTypeDeclarations(packageDir: string, entrypoint: string) {
+async function copyTypeDeclarations(packageDir: string, _entrypoint: string) {
   console.log("📝 Copying TypeScript declarations...");
 
   try {
