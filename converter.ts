@@ -1,4 +1,15 @@
 import $ from "@david/dax";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { join } from "node:path";
+import { mkdirSync } from "node:fs";
 import { bundleWithEsbuild, copyTypeDeclarations } from "./bundler.ts";
 import { copyExtraFiles, generatePackageJson } from "./package-generator.ts";
 import type { PackageOverrides } from "./config.ts";
@@ -17,14 +28,14 @@ export async function convertPackage(
   }
 
   const workspaceDir = createWorkspace(packageName, version);
-  const originalCwd = Deno.cwd();
+  const originalCwd = process.cwd();
 
   try {
-    Deno.chdir(workspaceDir);
+    process.chdir(workspaceDir);
     await installJSRPackage(packageName, version);
 
-    const packageDir = `node_modules/${packageName}`;
-    await Deno.mkdir(`${packageDir}/dist`, { recursive: true });
+    const packageDir = join("node_modules", packageName);
+    await mkdir(join(packageDir, "dist"), { recursive: true });
 
     const externalPackages = await getExternalPackages(packageDir);
     await bundlePackage(packageDir, bin, externalPackages);
@@ -37,20 +48,20 @@ export async function convertPackage(
     console.log("\n✅ Conversion completed!");
     console.log(`📂 Output: ${workspaceDir}/dist`);
   } finally {
-    Deno.chdir(originalCwd);
+    process.chdir(originalCwd);
   }
 }
 
 function createWorkspace(packageName: string, version: string): string {
   const folderName = packageName.replace(/[@\/]/g, "__") + `_${version}`;
-  Deno.mkdirSync(folderName, { recursive: true });
+  mkdirSync(folderName, { recursive: true });
   console.log(`📁 Created folder: ${folderName}`);
   return folderName;
 }
 
 async function getExternalPackages(packageDir: string): Promise<string[]> {
   try {
-    const content = await Deno.readTextFile(`${packageDir}/package.json`);
+    const content = await readFile(join(packageDir, "package.json"), "utf-8");
     const pkgJson = JSON.parse(content);
 
     if (!pkgJson.dependencies) return [];
@@ -100,8 +111,13 @@ async function findConflictingPackages(
 
   for (const jsrPkg of jsrPackages) {
     try {
-      const jsrPkgPath = `${packageDir}/node_modules/${jsrPkg}/package.json`;
-      const jsrContent = await Deno.readTextFile(jsrPkgPath);
+      const jsrPkgPath = join(
+        packageDir,
+        "node_modules",
+        jsrPkg,
+        "package.json",
+      );
+      const jsrContent = await readFile(jsrPkgPath, "utf-8");
       const jsrPkgJson = JSON.parse(jsrContent);
 
       if (!jsrPkgJson.dependencies) continue;
@@ -158,8 +174,8 @@ async function bundleBinCommands(
       externalPackages,
     );
 
-    const outputPath = `${packageDir}/dist/${outputFile}`;
-    await Deno.chmod(outputPath, 0o755);
+    const outputPath = join(packageDir, "dist", outputFile);
+    await chmod(outputPath, 0o755);
 
     console.log(`  ✅ Created ${cmdName}: ${outputFile}`);
   }
@@ -192,19 +208,19 @@ async function bundleLibraryExports(
 }
 
 async function installJSRPackage(packageName: string, version: string) {
-  await Deno.writeTextFile("package.json", "{}");
+  await writeFile("package.json", "{}");
 
   const packageSpec = version === "latest"
     ? packageName
     : `${packageName}@${version}`;
   console.log(`🔄 Installing: ${packageSpec}`);
 
-  await $`npx jsr add ${packageSpec}`.cwd(Deno.cwd());
+  await $`npx jsr add ${packageSpec}`.cwd(process.cwd());
 }
 
 async function verifyEntrypoint(packageDir: string, entrypoint: string) {
   try {
-    await Deno.stat(`${packageDir}/${entrypoint}`);
+    await stat(join(packageDir, entrypoint));
     console.log(`✅ Found ${entrypoint}`);
   } catch {
     throw new Error(`❌ ${entrypoint} not found in ${packageDir}`);
@@ -216,7 +232,7 @@ async function readDenoJsonExports(
 ): Promise<Record<string, string> | null> {
   for (const file of ["deno.json", "deno.jsonc"]) {
     try {
-      const content = await Deno.readTextFile(`${packageDir}/${file}`);
+      const content = await readFile(join(packageDir, file), "utf-8");
       const denoJson = JSON.parse(content);
 
       if (!denoJson.exports) continue;
@@ -239,15 +255,15 @@ async function readDenoJsonExports(
 }
 
 async function moveDistToRoot(packageDir: string) {
-  const sourceDist = `${packageDir}/dist`;
-  const targetDist = `${Deno.cwd()}/dist`;
+  const sourceDist = join(packageDir, "dist");
+  const targetDist = join(process.cwd(), "dist");
 
   try {
-    await Deno.remove(targetDist, { recursive: true });
+    await rm(targetDist, { recursive: true });
   } catch {
     // Target doesn't exist, ignore
   }
 
-  await Deno.rename(sourceDist, targetDist);
+  await rename(sourceDist, targetDist);
   await copyExtraFiles(packageDir, targetDist);
 }

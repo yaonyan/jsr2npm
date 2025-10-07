@@ -4,7 +4,7 @@ import { convertPackage } from "./converter.ts";
 async function main() {
   console.log("🚀 JSR to NPM Package Converter\n");
 
-  const configFile = Deno.args[0] || "jsr2npm.config.json";
+  const configFile = process.argv[2] || "jsr2npm.config.json";
   const config = await loadConfig(configFile);
 
   if (!config?.packages?.length) {
@@ -27,7 +27,7 @@ async function main() {
   ]
 }
     `);
-    Deno.exit(1);
+    process.exit(1);
   }
 
   console.log(`📋 Found ${config.packages.length} package(s) in config\n`);

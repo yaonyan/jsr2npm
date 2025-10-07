@@ -151,7 +151,6 @@ The script automates these steps:
 
 ## Requirements
 
-- [Deno](https://deno.land/)
 - [Node.js](https://nodejs.org/) (which includes `npx`)
 
 ## Usage

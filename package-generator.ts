@@ -1,3 +1,5 @@
+import { copyFile, readFile, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { PackageOverrides } from "./config.ts";
 
 type PackageJson = Record<string, unknown>;
@@ -20,8 +22,8 @@ export async function generatePackageJson(
     overrides,
   );
 
-  await Deno.writeTextFile(
-    `${packageDir}/dist/package.json`,
+  await writeFile(
+    join(packageDir, "dist", "package.json"),
     JSON.stringify(newPkg, null, 2),
   );
 
@@ -34,7 +36,7 @@ export async function generatePackageJson(
 
 async function readPackageJson(path: string): Promise<PackageJson> {
   try {
-    const content = await Deno.readTextFile(path);
+    const content = await readFile(path, "utf-8");
     return JSON.parse(content);
   } catch {
     return { name: "converted-package", version: "1.0.0", license: "MIT" };
@@ -44,7 +46,7 @@ async function readPackageJson(path: string): Promise<PackageJson> {
 async function readDenoJson(packageDir: string): Promise<PackageJson> {
   for (const file of ["deno.json", "deno.jsonc"]) {
     try {
-      const content = await Deno.readTextFile(`${packageDir}/${file}`);
+      const content = await readFile(join(packageDir, file), "utf-8");
       console.log(`✅ Found ${file}`);
       return JSON.parse(content);
     } catch {
@@ -233,8 +235,8 @@ export async function copyExtraFiles(sourceDir: string, targetDir: string) {
 
   for (const file of files) {
     try {
-      await Deno.stat(`${sourceDir}/${file}`);
-      await Deno.copyFile(`${sourceDir}/${file}`, `${targetDir}/${file}`);
+      await stat(join(sourceDir, file));
+      await copyFile(join(sourceDir, file), join(targetDir, file));
       console.log(`  ✅ Copied ${file}`);
     } catch {
       // File doesn't exist, skip
