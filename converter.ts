@@ -1,4 +1,4 @@
-import $ from "jsr:@david/dax";
+import $ from "@david/dax";
 import { bundleWithEsbuild, copyTypeDeclarations } from "./bundler.ts";
 import { generatePackageJson, copyExtraFiles } from "./package-generator.ts";
 import type { PackageOverrides } from "./config.ts";

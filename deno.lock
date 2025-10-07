@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@david/console-static-text@0.3": "0.3.0",
     "jsr:@david/dax@*": "0.43.2",
+    "jsr:@david/dax@~0.43.2": "0.43.2",
     "jsr:@david/path@0.2": "0.2.0",
     "jsr:@david/which@~0.4.1": "0.4.1",
     "jsr:@sallai/ask@2.0.2": "2.0.2",
@@ -389,5 +390,10 @@
       "integrity": "sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==",
       "bin": true
     }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@david/dax@~0.43.2"
+    ]
   }
 }

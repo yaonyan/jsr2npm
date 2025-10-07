@@ -105,7 +105,7 @@ function addBugsUrl(pkg: PackageJson) {
   
   const repoUrl = typeof pkg.repository === 'string' 
     ? pkg.repository 
-    : (pkg.repository as any)?.url;
+    : (pkg.repository as { url?: string })?.url;
     
   if (repoUrl) {
     const cleanUrl = repoUrl.replace(/^git\+/, '').replace(/\.git$/, '');
@@ -134,46 +134,51 @@ function buildExports(
 
 function buildBinExports(pkg: PackageJson, bin: Record<string, string>) {
   const binCommands: Record<string, string> = {};
-  pkg.exports = {};
+  const exports: Record<string, unknown> = {};
   
   for (const cmdName of Object.keys(bin)) {
     binCommands[cmdName] = `./bin/${cmdName}.mjs`;
-    pkg.exports[`./bin/${cmdName}`] = `./bin/${cmdName}.mjs`;
+    exports[`./bin/${cmdName}`] = `./bin/${cmdName}.mjs`;
   }
   
   pkg.bin = binCommands;
   const firstCmd = Object.keys(bin)[0];
-  pkg.exports["."] = `./bin/${firstCmd}.mjs`;
+  exports["."] = `./bin/${firstCmd}.mjs`;
+  pkg.exports = exports;
   pkg.main = `./bin/${firstCmd}.mjs`;
   
   console.log(`  🔧 Added bin commands: ${Object.keys(binCommands).join(", ")}`);
 }
 
 function buildLibraryExports(pkg: PackageJson, denoJson: PackageJson) {
-  pkg.exports = {};
+  const exports: Record<string, unknown> = {};
+  const denoExports = denoJson.exports as Record<string, unknown> | undefined;
   
-  for (const [key, value] of Object.entries(denoJson.exports)) {
+  if (!denoExports) return;
+  
+  for (const [key, value] of Object.entries(denoExports)) {
     const tsPath = typeof value === 'string' ? value : null;
     if (!tsPath) continue;
     
     const mjsFile = key === "." ? "index.mjs" : `${key.replace(/^\.\//, "")}.mjs`;
     const dtsPath = tsPath.replace(/\.ts$/, ".d.ts").replace(/^\.\//, "");
     
-    pkg.exports[key] = {
+    exports[key] = {
       types: `./types/${dtsPath}`,
       import: `./${mjsFile}`
     };
   }
   
-  pkg.exports["./types/*"] = "./types/*";
+  exports["./types/*"] = "./types/*";
+  pkg.exports = exports;
   
   // Set main entry
-  const mainExport = pkg.exports["."];
+  const mainExport = exports["."];
   if (mainExport && typeof mainExport === 'object' && 'import' in mainExport) {
     pkg.main = mainExport.import as string;
   }
   
-  console.log(`  📦 Built exports for ${Object.keys(denoJson.exports).length} entry points`);
+  console.log(`  📦 Built exports for ${Object.keys(denoExports).length} entry points`);
 }
 
 function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
