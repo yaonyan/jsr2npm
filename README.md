@@ -170,12 +170,20 @@ After conversion, you can publish manually:
 cd __scope__package_version/dist
 npm publish --access public
 
-# For multiple packages (loop through all)
+# For multiple packages (skip if already published)
 for dir in __*_*/dist; do
   cd "$dir"
-  npm publish --access public
+  NAME=$(node -p "require('./package.json').name")
+  VERSION=$(node -p "require('./package.json').version")
+  
+  if npm view "$NAME@$VERSION" version 2>/dev/null; then
+    echo "Skipping $NAME@$VERSION (already published)"
+  else
+    npm publish --access public
+  fi
   cd ../..
 done
+```
 ```
 
 ---
@@ -249,7 +257,14 @@ jobs:
         run: |
           for dir in __*_*/dist; do
             cd "$dir"
-            npm publish --access public --provenance
+            NAME=$(node -p "require('./package.json').name")
+            VERSION=$(node -p "require('./package.json').version")
+            
+            if npm view "$NAME@$VERSION" version 2>/dev/null; then
+              echo "Skipping $NAME@$VERSION (already published)"
+            else
+              npm publish --access public --provenance
+            fi
             cd ../..
           done
         env:
