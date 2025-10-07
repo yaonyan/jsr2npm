@@ -97,9 +97,9 @@ structure and metadata.
    deno run --allow-all cli.ts
    ```
 
-   Or use the remote version:
+   Or use npx:
    ```bash
-   deno run --allow-all https://raw.githubusercontent.com/yaonyan/jsr2npm/main/cli.ts
+   npx -y @yaonyan/jsr2npm@latest
    ```
 
 ## How It Works
@@ -163,10 +163,10 @@ Run the conversion locally:
 deno run -A cli.ts
 ```
 
-Or use the remote version:
+Or use npx to run the latest version:
 
 ```bash
-deno run -A https://raw.githubusercontent.com/yaonyan/jsr2npm/main/cli.ts
+npx -y @yaonyan/jsr2npm@latest
 ```
 
 The converted packages will be in `__<scope>__<package>_<version>/dist/`
@@ -262,7 +262,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Run JSR to NPM conversion
-        run: deno run -A https://raw.githubusercontent.com/yaonyan/jsr2npm/main/cli.ts
+        run: npx -y @yaonyan/jsr2npm@latest
 
       - name: Publish to npm
         run: |
