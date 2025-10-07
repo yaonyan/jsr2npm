@@ -16,10 +16,13 @@ We can publish JSR packages with npm deps, but not vice versa, so **jsr2npm** fi
 
 ## Why jsr2npm?
 
-JSR is great for publishing TypeScript/Deno packages, but the NPM ecosystem is still huge. Many developers want to:
+JSR is great for publishing TypeScript/Deno packages, but the NPM ecosystem is still huge.
+
+Many developers want to:
 - Publish CLI tools that work with `npx`
 - Make their JSR packages available on NPM
 - Support both ecosystems without maintaining duplicate code
+- Write pure TypeScript with Deno, publish to NPM
 
 **jsr2npm** automates this entire process while preserving your package structure and metadata.
 
