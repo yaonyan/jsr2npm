@@ -1,19 +1,19 @@
-/**
- * Bundle a single file with esbuild
- */
 export async function bundleWithEsbuild(
   packageDir: string,
   inputFile: string,
-  outputFile: string
+  outputFile: string,
+  externalPackages: string[] = []
 ): Promise<void> {
   const { build } = await import("npm:esbuild@0.25.5");
 
   const entryPath = `${Deno.cwd()}/${packageDir}/${inputFile}`;
   const outputPath = `${Deno.cwd()}/${packageDir}/dist/${outputFile}`;
-
-  // Ensure output directory exists
   const outputDir = outputPath.split("/").slice(0, -1).join("/");
+  
   await Deno.mkdir(outputDir, { recursive: true });
+
+  const externalList = externalPackages.length > 0 ? externalPackages.join(", ") : "none";
+  console.log(`  📦 External packages: ${externalList}`);
 
   await build({
     entryPoints: [entryPath],
@@ -21,67 +21,49 @@ export async function bundleWithEsbuild(
     platform: "node",
     format: "esm",
     outfile: outputPath,
-    banner: { js: "#!/usr/bin/env node" },
-    plugins: [{
-      name: "jsr-external",
-      // deno-lint-ignore no-explicit-any
-      setup(build: any) {
-        build.onResolve({ filter: /.*/ }, (args: { path: string; importer?: string }) => {
-          if (!args.importer) return null;
-          
-          // Bundle JSR dependencies and relative imports
-          if (
-            args.path.startsWith("@jsr/") ||
-            args.path.startsWith("jsr:") ||
-            args.path.startsWith(".") ||
-            args.path.startsWith("/")
-          ) {
-            return null;
-          }
-
-          // Mark node: and npm packages as external
-          return { path: args.path, external: true };
-        });
-      },
-    }],
+    external: externalPackages,
+    packages: "bundle",
+    banner: {
+      js: `#!/usr/bin/env node
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);`,
+    },
     write: true,
   });
 }
 
-/**
- * Copy TypeScript declarations from JSR package
- */
 export async function copyTypeDeclarations(packageDir: string) {
   console.log("\n📝 Copying TypeScript declarations...");
 
-  try {
-    const distDirPath = `${packageDir}/_dist`;
-    await Deno.stat(distDirPath);
-    
-    const typesDir = `${packageDir}/dist/types`;
-    await Deno.mkdir(typesDir, { recursive: true });
+  const sourceDir = `${packageDir}/_dist`;
+  const targetDir = `${packageDir}/dist/types`;
 
-    for await (const entry of Deno.readDir(distDirPath)) {
-      const sourcePath = `${distDirPath}/${entry.name}`;
-      const targetPath = `${typesDir}/${entry.name}`;
+  try {
+    await Deno.stat(sourceDir);
+    await Deno.mkdir(targetDir, { recursive: true });
+
+    for await (const entry of Deno.readDir(sourceDir)) {
+      const source = `${sourceDir}/${entry.name}`;
+      const target = `${targetDir}/${entry.name}`;
 
       if (entry.isFile) {
-        await Deno.copyFile(sourcePath, targetPath);
-        console.log(`  ✅ Copied ${entry.name}`);
+        await Deno.copyFile(source, target);
       } else if (entry.isDirectory) {
-        await copyDirectory(sourcePath, targetPath);
-        console.log(`  ✅ Copied directory ${entry.name}`);
+        await copyDirectory(source, target);
       }
+      
+      console.log(`  ✅ Copied ${entry.name}`);
     }
 
     console.log("✅ TypeScript declarations copied");
-  } catch (error) {
+  } catch {
     console.warn("⚠️ No TypeScript declarations found");
   }
 }
 
 async function copyDirectory(source: string, target: string) {
   await Deno.mkdir(target, { recursive: true });
+  
   for await (const entry of Deno.readDir(source)) {
     const sourcePath = `${source}/${entry.name}`;
     const targetPath = `${target}/${entry.name}`;

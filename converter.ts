@@ -21,16 +21,14 @@ export async function convertPackage(
 
   try {
     Deno.chdir(workspaceDir);
-    
     await installJSRPackage(packageName, version);
     
     const packageDir = `node_modules/${packageName}`;
     await Deno.mkdir(`${packageDir}/dist`, { recursive: true });
 
-    // Bundle files
-    await bundlePackage(packageDir, bin);
-
-    // Copy files and generate metadata
+    const externalPackages = await getExternalPackages(packageDir);
+    await bundlePackage(packageDir, bin, externalPackages);
+    
     await copyTypeDeclarations(packageDir);
     await copyExtraFiles(packageDir, `${packageDir}/dist`);
     await generatePackageJson(packageDir, bin, overrides);
@@ -50,22 +48,98 @@ function createWorkspace(packageName: string, version: string): string {
   return folderName;
 }
 
-async function bundlePackage(packageDir: string, bin?: Record<string, string>) {
-  if (bin) {
-    await bundleBinCommands(packageDir, bin);
-  } else {
-    await bundleLibraryExports(packageDir);
+async function getExternalPackages(packageDir: string): Promise<string[]> {
+  try {
+    const content = await Deno.readTextFile(`${packageDir}/package.json`);
+    const pkgJson = JSON.parse(content);
+    
+    if (!pkgJson.dependencies) return [];
+    
+    const topLevelDeps: Record<string, string> = {};
+    for (const [name, version] of Object.entries(pkgJson.dependencies)) {
+      if (!name.startsWith("@jsr/")) {
+        topLevelDeps[name] = String(version);
+      }
+    }
+    
+    const jsrPackages = Object.keys(pkgJson.dependencies).filter(name => name.startsWith("@jsr/"));
+    const conflictingPackages = await findConflictingPackages(packageDir, jsrPackages, topLevelDeps);
+    
+    const externals = Object.keys(topLevelDeps).filter(name => !conflictingPackages.has(name));
+    
+    const externalList = externals.join(", ") || "none";
+    console.log(`\n📦 External dependencies (${externals.length}): ${externalList}`);
+    
+    if (conflictingPackages.size > 0) {
+      const conflictList = Array.from(conflictingPackages).join(", ");
+      console.log(`⚠️  Version conflicts, will bundle: ${conflictList}`);
+    }
+    
+    return externals;
+  } catch {
+    return [];
   }
 }
 
-async function bundleBinCommands(packageDir: string, bin: Record<string, string>) {
+async function findConflictingPackages(
+  packageDir: string,
+  jsrPackages: string[],
+  topLevelDeps: Record<string, string>
+): Promise<Set<string>> {
+  const conflicts = new Set<string>();
+  
+  for (const jsrPkg of jsrPackages) {
+    try {
+      const jsrPkgPath = `${packageDir}/node_modules/${jsrPkg}/package.json`;
+      const jsrContent = await Deno.readTextFile(jsrPkgPath);
+      const jsrPkgJson = JSON.parse(jsrContent);
+      
+      if (!jsrPkgJson.dependencies) continue;
+      
+      for (const [depName, depVersion] of Object.entries(jsrPkgJson.dependencies)) {
+        if (depName.startsWith("@jsr/")) continue;
+        
+        if (topLevelDeps[depName]) {
+          if (topLevelDeps[depName] !== depVersion) {
+            conflicts.add(depName);
+            console.log(`  ⚠️  Version conflict for ${depName}:`);
+            console.log(`      Top-level: ${topLevelDeps[depName]}`);
+            console.log(`      ${jsrPkg}: ${depVersion}`);
+          }
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  return conflicts;
+}
+
+async function bundlePackage(
+  packageDir: string,
+  bin: Record<string, string> | undefined,
+  externalPackages: string[]
+) {
+  if (bin) {
+    await bundleBinCommands(packageDir, bin, externalPackages);
+  } else {
+    await bundleLibraryExports(packageDir, externalPackages);
+  }
+}
+
+async function bundleBinCommands(
+  packageDir: string,
+  bin: Record<string, string>,
+  externalPackages: string[]
+) {
   console.log("\n🔨 Bundling CLI tools...");
   
   for (const [cmdName, inputFile] of Object.entries(bin)) {
     await verifyEntrypoint(packageDir, inputFile);
     
     const outputFile = `bin/${cmdName}.mjs`;
-    await bundleWithEsbuild(packageDir, inputFile, outputFile);
+    await bundleWithEsbuild(packageDir, inputFile, outputFile, externalPackages);
     
     const outputPath = `${packageDir}/dist/${outputFile}`;
     await Deno.chmod(outputPath, 0o755);
@@ -74,7 +148,10 @@ async function bundleBinCommands(packageDir: string, bin: Record<string, string>
   }
 }
 
-async function bundleLibraryExports(packageDir: string) {
+async function bundleLibraryExports(
+  packageDir: string,
+  externalPackages: string[]
+) {
   const exports = await readDenoJsonExports(packageDir);
   if (!exports) return;
 
@@ -87,7 +164,7 @@ async function bundleLibraryExports(packageDir: string) {
       ? "index.mjs"
       : `${exportKey.replace(/^\.\//, "")}.mjs`;
       
-    await bundleWithEsbuild(packageDir, inputFile, outputFile);
+    await bundleWithEsbuild(packageDir, inputFile, outputFile, externalPackages);
     console.log(`  ✅ Bundled ${exportKey}: ${outputFile}`);
   }
 }
