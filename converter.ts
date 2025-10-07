@@ -1,29 +1,20 @@
 import $ from "jsr:@david/dax";
-import { bundleMultipleEntrypoints } from "./bundler.ts";
+import { bundleWithEsbuild, copyTypeDeclarations } from "./bundler.ts";
 import { generatePackageJson, copyExtraFiles } from "./package-generator.ts";
-import type { PackageOverrides, EntrypointConfig } from "./config.ts";
+import type { PackageOverrides } from "./config.ts";
 
 export async function convertPackage(
   packageName: string,
   version: string,
-  entrypoint?: string,
-  entrypoints?: EntrypointConfig[],
+  bin?: Record<string, string>,
   overrides?: PackageOverrides
 ) {
   console.log(`\n📦 Package: ${packageName}`);
   console.log(`🏷️  Version: ${version}`);
 
-  // 确保至少有一个入口点
-  if (!entrypoint && (!entrypoints || entrypoints.length === 0)) {
-    throw new Error("❌ Must provide either entrypoint or entrypoints");
+  if (bin && Object.keys(bin).length > 0) {
+    console.log(`� CLI Commands: ${Object.keys(bin).join(", ")}`);
   }
-
-  // 标准化为 entrypoints 数组
-  const normalizedEntrypoints: EntrypointConfig[] = entrypoints || [
-    { input: entrypoint!, output: "bundle.mjs", type: "bin" }
-  ];
-
-  console.log(`📄 Entrypoints: ${normalizedEntrypoints.map(e => e.input).join(", ")}`);
 
   const folderName = createFolderName(packageName, version);
   await Deno.mkdir(folderName, { recursive: true });
@@ -38,22 +29,30 @@ export async function convertPackage(
     
     const packageDir = `node_modules/${packageName}`;
     
-    // 验证所有入口点
-    for (const entry of normalizedEntrypoints) {
-      await verifyEntrypoint(packageDir, entry.input);
-    }
-    
     await Deno.mkdir(`${packageDir}/dist`, { recursive: true });
 
-    // Bundle all entrypoints
-    await bundleMultipleEntrypoints(packageDir, normalizedEntrypoints);
+    // Bundle bin commands if configured
+    if (bin && Object.keys(bin).length > 0) {
+      console.log("\n🔨 Bundling CLI tools...");
+      for (const [cmdName, inputFile] of Object.entries(bin)) {
+        await verifyEntrypoint(packageDir, inputFile);
+        const outputFile = `bin/${cmdName}.mjs`;
+        await bundleWithEsbuild(packageDir, inputFile, outputFile);
+        
+        // Make executable
+        const outputPath = `${packageDir}/dist/${outputFile}`;
+        await Deno.chmod(outputPath, 0o755);
+        console.log(`  ✅ Created ${cmdName}: ${outputFile}`);
+      }
+    }
+
+    // Copy type declarations
+    await copyTypeDeclarations(packageDir);
 
     await copyExtraFiles(packageDir, `${packageDir}/dist`);
     await generatePackageJson(
       packageDir,
-      [], // No longer needed, deps are read from JSR package.json
-      normalizedEntrypoints[0].input,
-      normalizedEntrypoints,
+      bin,
       overrides
     );
 

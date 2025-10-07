@@ -1,0 +1,23 @@
+{
+  "packages": [
+    {
+      "name": "@scope/simple-lib",
+      "version": "1.0.0",
+      "packageJson": {
+        "name": "@npm-org/simple-lib",
+        "description": "A simple library (uses JSR exports as-is)"
+      }
+    },
+    {
+      "name": "@scope/cli-tool",
+      "version": "1.0.0",
+      "bin": {
+        "mycli": "src/bin.ts"
+      },
+      "packageJson": {
+        "name": "@npm-org/cli-tool",
+        "description": "A CLI tool with bin command"
+      }
+    }
+  ]
+}

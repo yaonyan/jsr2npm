@@ -3,14 +3,9 @@
     {
       "name": "@mcpc/cli",
       "version": "0.1.1",
-      "entrypoints": [
-        {
-          "input": "src/bin.ts",
-          "output": "src/bin.mjs",
-          "type": "bin",
-          "binName": "mcpc"
-        }
-      ],
+      "bin": {
+        "mcpc": "src/bin.ts"
+      },
       "packageJson": {
         "name": "@mcpc-tech/cli",
         "version": "0.1.1-beta.5"
@@ -19,14 +14,9 @@
     {
       "name": "@yao/gpt-vis-mcp",
       "version": "0.1.1-beta.1",
-      "entrypoints": [
-        {
-          "input": "stdio.server.ts",
-          "output": "stdio.server.mjs",
-          "type": "bin",
-          "binName": "gpt-vis-mcp"
-        }
-      ],
+      "bin": {
+        "gpt-vis-mcp": "stdio.server.ts"
+      },
       "packageJson": {
         "name": "@jsr2npm/yao__gpt-vis-mcp",
         "version": "0.1.1-beta.4"

@@ -1,61 +1,79 @@
 # JSR to NPM Converter
 
-This is a command-line tool to convert JSR packages into a format that can be published to NPM. It handles bundling the code, extracting NPM dependencies, and creating a valid `package.json`.
+> **Bridge the gap**: Publish JSR packages to NPM with zero hassle
+
+We can publish JSR packages with npm deps, but not vice versa, so **jsr2npm** fills the gap by converting JSR packages to NPM-compatible format.
+
+## ✨ Key Features
+
+- 🎯 **Zero Configuration** - Works out of the box, just specify package name and version
+- 📦 **Preserves JSR Exports** - Keeps your original module structure intact
+- 🔧 **CLI Tools Support** - Add executable commands with simple `bin` configuration
+- 🚀 **Smart Bundling** - Bundles JSR/Deno code while keeping NPM deps external
+- 📝 **Type Definitions** - Automatically copies TypeScript declarations
+- 🔄 **CI/CD Ready** - Easy GitHub Actions integration for automated publishing
+- 💎 **Clean & Simple** - Minimal config, maximum clarity
+
+## Why jsr2npm?
+
+JSR is great for publishing TypeScript/Deno packages, but the NPM ecosystem is still huge. Many developers want to:
+- Publish CLI tools that work with `npx`
+- Make their JSR packages available on NPM
+- Support both ecosystems without maintaining duplicate code
+
+**jsr2npm** automates this entire process while preserving your package structure and metadata.
 
 ## How to Use
 
 1.  **Create a `jsr2npm.config.json` file:**
 
-    ### CLI Tool Configuration (Recommended)
+    ### Basic Package (Uses JSR exports as-is)
+    ```json
+    {
+      "packages": [
+        {
+          "name": "@scope/package",
+          "version": "1.0.0",
+          "packageJson": {
+            "name": "@myorg/package",
+            "description": "Package description"
+          }
+        }
+      ]
+    }
+    ```
+
+    ### CLI Tool (Adds bin command)
     ```json
     {
       "packages": [
         {
           "name": "@scope/cli-tool",
           "version": "1.0.0",
+          "bin": {
+            "your-command": "src/bin.ts"
+          },
           "packageJson": {
             "name": "@myorg/cli-tool",
-            "description": "A CLI tool",
-            "bin": {
-              "my-command": "./bin/cli.mjs"
-            }
+            "description": "Your CLI tool description"
           }
         }
       ]
     }
     ```
 
-    ### Library with Multiple Entry Points
-    ```json
-    {
-      "packages": [
-        {
-          "name": "@scope/package-name",
-          "version": "1.0.0",
-          "entrypoints": ["mod.ts", "plugins.ts", "utils.ts"],
-          "packageJson": {
-            "name": "@myorg/custom-name",
-            "description": "Custom package description"
-          }
-        }
-      ]
-    }
-    ```
-
-    **Configuration Options:**
-    - `name`: JSR package name (e.g., "@scope/package")
-    - `version`: Package version
-    - `entrypoints`: (Optional) Array of entry files to bundle. If not specified, will use `deno.json` exports
-    - `packageJson.bin`: Define CLI commands. The tool will automatically bundle the referenced files
-
-    **Configuration Options:**
-    - `name`: JSR package name (e.g., "@scope/package")
-    - `version`: Package version
-    - `entrypoints`: (Optional) Array of entry files to bundle. If not specified, will use `deno.json` exports
-    - `packageJson.bin`: Define CLI commands. The tool will automatically bundle the referenced files
+    **Configuration:**
+    - `name` (required): JSR package name
+    - `version` (required): JSR package version
+    - `bin` (optional): CLI commands to add
+      - Key: command name (e.g., "mycli")
+      - Value: source file path (e.g., "src/bin.ts")
+      - Bundles to `bin/{command}.mjs` automatically
+      - **JSR exports are preserved completely**
+    - `packageJson` (optional): Override package.json fields
 
     **Available `packageJson` overrides:**
-    - `name`: Override the package name (default: `@jsr2npm/original-name`)
+    - `name`: NPM package name (recommended, e.g., "@myorg/cli-tool")
     - `version`: Override the package version
     - `description`: Override package description
     - `author`: Override author (string or object with name/email/url)
@@ -63,8 +81,7 @@ This is a command-line tool to convert JSR packages into a format that can be pu
     - `homepage`: Override homepage URL
     - `repository`: Override repository (string or object with type/url)
     - `keywords`: Override keywords array
-    - `bin`: Define CLI commands (e.g., `{"my-cli": "./bin/cli.mjs"}`)
-    - `scripts`: Merge additional scripts (keeps the default `start` script)
+    - `scripts`: Merge additional scripts
 
 2.  **Run the script:**
     ```bash
@@ -79,60 +96,44 @@ This is a command-line tool to convert JSR packages into a format that can be pu
 ## How It Works
 
 ```mermaid
-flowchart TD
-    A[📋 Read jsr2npm.config.json] --> B[📦 For each package]
-    B --> C[📁 Create workspace folder<br/>__scope__package_version]
-    C --> D[🔄 Install JSR package<br/>via npx jsr add]
-    D --> E{Check entrypoints}
-    E -->|From config| F[📄 Use configured entrypoints]
-    E -->|Auto detect| G[📄 Read from deno.json exports]
-    F --> H[🔨 Bundle with esbuild]
-    G --> H
-    H --> I[📦 Separate JSR/Deno code<br/>from NPM dependencies]
-    I --> J[📝 Extract external dependencies]
-    J --> K{Has bin config?}
-    K -->|Yes| L[🔧 Bundle CLI files<br/>Set executable permissions]
-    K -->|No| M[📋 Generate package.json]
-    L --> M
-    M --> N[📄 Copy README, LICENSE<br/>and type declarations]
-    N --> O[✅ Ready to publish!<br/>dist/ folder]
+graph TD
+    A[Read jsr2npm.config.json] --> B[Create Workspace Folder]
+    B --> C[Download JSR Package<br/>npm install @jsr/...]
+    C --> D[Bundle Code with esbuild]
+    D --> E[Analyze Dependencies]
+    E --> F{Dependency Type?}
+    F -->|JSR/Deno Code| G[Include in Bundle]
+    F -->|NPM Package| H[Mark as External]
+    F -->|Node.js Built-in| H
+    G --> I[Generate package.json]
+    H --> I
+    I --> J[Set External NPM Deps<br/>with Correct Versions]
+    J --> K[Preserve JSR Exports]
+    K --> L[Copy Types & Files]
+    L --> M[dist/ Ready to Publish]
     
-    style A fill:#e1f5ff
-    style O fill:#c8e6c9
-    style H fill:#fff9c4
-    style M fill:#fff9c4
+    style E fill:#ff9,stroke:#333,stroke-width:2px
+    style F fill:#f9f,stroke:#333,stroke-width:3px
+    style J fill:#9ff,stroke:#333,stroke-width:2px
+    style M fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
-## What It Does
+The script automates these steps:
 
-The script automates the following steps:
-
-1.  **Creates a Workspace:** It makes a new folder named `_<scope>_<name>_<version>` to keep the conversion files organized.
-
-2.  **Fetches the JSR Package:** It uses `npx jsr add` to download the specified JSR package and its Deno dependencies.
-
-3.  **Bundles the Code:**
-    *   It uses `esbuild` to bundle the JSR package into one or more ESM files
-    *   Reads entry points from `deno.json` exports or `entrypoints` config
-    *   For CLI tools, bundles files referenced in `packageJson.bin`
-    *   It intelligently separates JSR/Deno-native code from third-party NPM packages. JSR packages and relative files are included in the bundle, while NPM packages and Node.js built-ins are marked as external.
-
-4.  **Generates `package.json`:**
-    *   It reads metadata from both `package.json` and `deno.json` files
-    *   It preserves important metadata like name, version, description, author, license, repository, keywords, and homepage from `deno.json`
-    *   It identifies all external NPM dependencies that were excluded from the bundle
-    *   It looks up the versions for these dependencies from the `package-lock.json` file
-    *   It generates a new `package.json` in the `dist` folder with:
-      - Correct NPM dependencies
-      - `exports` field mapping entry points
-      - `bin` field for CLI tools (auto-generated from "bin" type entries)
-      - Type declarations paths
-      - Basic `start` script
-    *   Config overrides take precedence over both `package.json` and `deno.json` values
-
-5.  **Copies Auxiliary Files:** It copies important files like `README.md` and `LICENSE` from the original JSR package into the final `dist` directory.
-
-6.  **Final Output:** The final, ready-to-publish NPM package is placed in the `dist` directory inside the conversion folder.
+1.  **Create Workspace** - Creates `__scope__package_version/` folder for organization
+2.  **Download JSR Package** - Uses `npm install` to fetch the package from JSR registry
+3.  **Bundle with esbuild** - Processes the code and intelligently handles dependencies
+4.  **Analyze Dependencies** - **Core feature**: Separates different types of dependencies:
+    - **JSR/Deno code**: Bundled into the output
+    - **NPM packages**: Marked as external dependencies
+    - **Node.js built-ins**: Marked as external
+5.  **Generate package.json** - Creates NPM metadata with:
+    - **External NPM dependencies with correct versions** (automatically detected)
+    - Preserved JSR `exports` field
+    - Type definitions paths
+    - `bin` field for CLI commands (if configured)
+6.  **Copy Files** - Includes TypeScript declarations, README, and LICENSE
+7.  **Output** - Ready-to-publish NPM package in `dist/` folder
 
 ## Requirements
 
@@ -182,12 +183,12 @@ Create `jsr2npm.config.json` in your JSR package repository root:
     {
       "name": "@your-scope/your-package",
       "version": "0.1.0",
+      "bin": {
+        "your-command": "src/cli.ts"
+      },
       "packageJson": {
         "name": "@npm-org/package-name",
-        "description": "Your package description",
-        "bin": {
-          "your-command": "./bin/cli.mjs"
-        }
+        "description": "Your package description"
       }
     }
   ]
@@ -286,10 +287,9 @@ After conversion, you'll have a structure like:
 __scope__package_1.0.0/
 ├── node_modules/          (JSR package and dependencies)
 └── dist/                  (Ready to publish)
-    ├── package.json       (Generated for npm)
-    ├── index.mjs          (Bundled code)
-    ├── bin/
-    │   └── cli.mjs        (CLI tool, if configured)
+    ├── package.json       (Generated for npm, preserves JSR exports)
+    ├── bin/               (CLI tools, if configured)
+    │   └── command.mjs    (Bundled executable)
     ├── types/             (TypeScript declarations)
     │   └── mod.d.ts
     ├── README.md          (Copied from source)

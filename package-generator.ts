@@ -1,12 +1,10 @@
-import type { PackageOverrides, EntrypointConfig } from "./config.ts";
+import type { PackageOverrides } from "./config.ts";
 
 type PackageJson = Record<string, unknown>;
 
 export async function generatePackageJson(
   packageDir: string,
-  _externalDeps: string[],
-  entrypoint: string,
-  entrypoints?: EntrypointConfig[],
+  bin?: Record<string, string>,
   overrides?: PackageOverrides
 ) {
   console.log("\n📋 Generating package.json...");
@@ -18,7 +16,7 @@ export async function generatePackageJson(
   const npmDeps = filterJsrDependencies(jsrPkg.dependencies);
   
   // Build new package.json
-  const newPkg = buildPackageJson(jsrPkg, npmDeps, packageDir, entrypoint, entrypoints, overrides);
+  const newPkg = buildPackageJson(jsrPkg, npmDeps, bin, overrides);
   
   // Write to dist
   await Deno.writeTextFile(
@@ -58,9 +56,7 @@ function filterJsrDependencies(deps: unknown): Record<string, string> {
 function buildPackageJson(
   jsrPkg: PackageJson,
   dependencies: Record<string, string>,
-  packageDir: string,
-  entrypoint: string,
-  entrypoints?: EntrypointConfig[],
+  bin?: Record<string, string>,
   overrides?: PackageOverrides
 ): PackageJson {
   // Keep all JSR metadata, just update what's needed
@@ -74,11 +70,14 @@ function buildPackageJson(
   delete pkg._jsr_revision;
   delete pkg.devDependencies;
 
-  // Handle entrypoints
-  if (entrypoints && entrypoints.length > 0) {
-    setupMultipleEntrypoints(pkg, packageDir, entrypoints);
-  } else {
-    setupSingleEntrypoint(pkg, packageDir, entrypoint, jsrPkg.bin);
+  // Add bin commands if configured
+  if (bin && Object.keys(bin).length > 0) {
+    const binCommands: Record<string, string> = {};
+    for (const cmdName of Object.keys(bin)) {
+      binCommands[cmdName] = `./bin/${cmdName}.mjs`;
+    }
+    pkg.bin = binCommands;
+    console.log(`  🔧 Added bin commands: ${Object.keys(binCommands).join(", ")}`);
   }
 
   // Rename package
@@ -90,76 +89,6 @@ function buildPackageJson(
   applyOverrides(pkg, overrides);
 
   return pkg;
-}
-
-function setupMultipleEntrypoints(
-  pkg: PackageJson,
-  packageDir: string,
-  entrypoints: EntrypointConfig[]
-) {
-  const mainEntry = entrypoints[0];
-  pkg.main = `./${mainEntry.output}`;
-  pkg.types = findTypesFile(packageDir, mainEntry.input);
-
-  // Build exports
-  const exports: Record<string, unknown> = {
-    "./types/*": "./types/*",
-    ".": {
-      import: `./${mainEntry.output}`,
-      types: pkg.types,
-    },
-  };
-
-  // Add other entrypoints
-  for (let i = 1; i < entrypoints.length; i++) {
-    const entry = entrypoints[i];
-    const key = `./${entry.output.replace(/\.m?js$/, "")}`;
-    exports[key] = { import: `./${entry.output}` };
-  }
-
-  pkg.exports = exports;
-
-  // Handle bin entries
-  const binEntries = entrypoints.filter(e => e.type === "bin");
-  if (binEntries.length > 0) {
-    const bin: Record<string, string> = {};
-    for (const entry of binEntries) {
-      const name = entry.binName || entry.output.split("/").pop()?.replace(/\.m?js$/, "") || "cli";
-      bin[name] = `./${entry.output}`;
-    }
-    pkg.bin = bin;
-    pkg.scripts = { start: `node ${binEntries[0].output}` };
-  } else {
-    pkg.scripts = { start: `node ${mainEntry.output}` };
-  }
-}
-
-function setupSingleEntrypoint(
-  pkg: PackageJson,
-  packageDir: string,
-  entrypoint: string,
-  originalBin: unknown
-) {
-  pkg.main = "./bundle.mjs";
-  pkg.types = findTypesFile(packageDir, entrypoint);
-  pkg.scripts = { start: "node bundle.mjs" };
-  pkg.exports = {
-    ".": {
-      import: "./bundle.mjs",
-      types: pkg.types,
-    },
-    "./types/*": "./types/*",
-  };
-
-  // Handle bin if it exists in original
-  if (originalBin && typeof originalBin === "object") {
-    const bin: Record<string, string> = {};
-    for (const key of Object.keys(originalBin)) {
-      bin[key] = "./bundle.mjs";
-    }
-    pkg.bin = bin;
-    (pkg.exports as Record<string, unknown>)["./bin"] = "./bundle.mjs";
-  }
 }
 
 function findTypesFile(packageDir: string, entrypoint: string): string {
@@ -209,10 +138,6 @@ function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
   if (overrides.keywords) {
     pkg.keywords = overrides.keywords;
     console.log(`  ✏️  Overriding keywords (${overrides.keywords.length} items)`);
-  }
-  if (overrides.bin) {
-    pkg.bin = overrides.bin;
-    console.log(`  ✏️  Overriding bin commands`);
   }
   if (overrides.scripts) {
     const currentScripts = (pkg.scripts as Record<string, string>) || {};

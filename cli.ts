@@ -17,7 +17,9 @@ async function main() {
     {
       "name": "@scope/package",
       "version": "1.0.0",
-      "entrypoint": "mod.ts",
+      "bin": {
+        "your-command": "src/bin.ts"
+      },
       "packageJson": {
         "name": "@myorg/custom-name",
         "description": "Package description"
@@ -40,8 +42,7 @@ async function main() {
       await convertPackage(
         pkg.name,
         pkg.version,
-        pkg.entrypoint,
-        pkg.entrypoints,
+        pkg.bin,
         pkg.packageJson
       );
     } catch (error) {

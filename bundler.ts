@@ -1,109 +1,58 @@
-import type { EntrypointConfig } from "./config.ts";
-
-export interface BundleResult {
-  output: string;
-}
-
 /**
- * Bundle single entrypoint (backwards compatible)
+ * Bundle a single file with esbuild
  */
-export async function bundlePackage(packageDir: string, entrypoint: string): Promise<string[]> {
-  await bundleMultipleEntrypoints(packageDir, [
-    { input: entrypoint, output: "bundle.mjs", type: "bin" }
-  ]);
-  return []; // No longer needed, deps are read from package.json
-}
-
-/**
- * Bundle multiple entrypoints
- */
-export async function bundleMultipleEntrypoints(
+export async function bundleWithEsbuild(
   packageDir: string,
-  entrypoints: EntrypointConfig[]
-): Promise<BundleResult[]> {
-  console.log("\n🔨 Bundling with esbuild...");
+  inputFile: string,
+  outputFile: string
+): Promise<void> {
   const { build } = await import("npm:esbuild@0.25.5");
 
-  const results: BundleResult[] = [];
+  const entryPath = `${Deno.cwd()}/${packageDir}/${inputFile}`;
+  const outputPath = `${Deno.cwd()}/${packageDir}/dist/${outputFile}`;
 
-  for (const entry of entrypoints) {
-    console.log(`\n📄 Bundling: ${entry.input} → ${entry.output}`);
-    const entryPath = `${Deno.cwd()}/${packageDir}/${entry.input}`;
-    const outputPath = `${Deno.cwd()}/${packageDir}/dist/${entry.output}`;
+  // Ensure output directory exists
+  const outputDir = outputPath.split("/").slice(0, -1).join("/");
+  await Deno.mkdir(outputDir, { recursive: true });
 
-    // Ensure output directory exists
-    const outputDir = outputPath.split("/").slice(0, -1).join("/");
-    await Deno.mkdir(outputDir, { recursive: true });
+  await build({
+    entryPoints: [entryPath],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: outputPath,
+    banner: { js: "#!/usr/bin/env node" },
+    plugins: [{
+      name: "jsr-external",
+      // deno-lint-ignore no-explicit-any
+      setup(build: any) {
+        build.onResolve({ filter: /.*/ }, (args: { path: string; importer?: string }) => {
+          if (!args.importer) return null;
+          
+          // Bundle JSR dependencies and relative imports
+          if (
+            args.path.startsWith("@jsr/") ||
+            args.path.startsWith("jsr:") ||
+            args.path.startsWith(".") ||
+            args.path.startsWith("/")
+          ) {
+            return null;
+          }
 
-    const isBin = entry.type === "bin";
-
-    await build({
-      entryPoints: [entryPath],
-      bundle: true,
-      platform: "node",
-      format: "esm",
-      outfile: outputPath,
-      banner: isBin ? { js: "#!/usr/bin/env node" } : undefined,
-      plugins: [{
-        name: "jsr-only",
-        // deno-lint-ignore no-explicit-any
-        setup(build: any) {
-          build.onResolve({ filter: /.*/ }, (args: { path: string; importer?: string }) => {
-            if (!args.importer) return null;
-            
-            // Bundle JSR dependencies
-            if (args.path.startsWith("@jsr/") || args.path.startsWith("jsr:")) {
-              return null;
-            }
-
-            // Bundle relative imports
-            if (args.path.startsWith(".") || args.path.startsWith("/")) {
-              return null;
-            }
-
-            // Mark node: and npm packages as external
-            return { path: args.path, external: true };
-          });
-        },
-      }],
-      write: true,
-    });
-
-    console.log(`  ✅ Created ${entry.output}`);
-
-    // Set executable permission for bin files
-    if (isBin) {
-      await makeExecutable(outputPath);
-    }
-
-    results.push({
-      output: entry.output,
-    });
-  }
-
-  // Copy type declarations for the first entrypoint
-  await copyTypeDeclarations(packageDir, entrypoints[0].input);
-
-  console.log(`\n✅ Bundled ${results.length} entrypoint(s)`);
-
-  return results;
+          // Mark node: and npm packages as external
+          return { path: args.path, external: true };
+        });
+      },
+    }],
+    write: true,
+  });
 }
 
-async function makeExecutable(bundlePath: string) {
-  try {
-    const content = await Deno.readTextFile(bundlePath);
-    if (content.startsWith("#!/usr/bin/env node")) {
-      const fileInfo = await Deno.stat(bundlePath);
-      await Deno.chmod(bundlePath, (fileInfo.mode || 0o644) | 0o111);
-      console.log("✅ Made bundle executable");
-    }
-  } catch (error) {
-    console.warn("⚠️ Could not make bundle executable:", error);
-  }
-}
-
-async function copyTypeDeclarations(packageDir: string, _entrypoint: string) {
-  console.log("📝 Copying TypeScript declarations...");
+/**
+ * Copy TypeScript declarations from JSR package
+ */
+export async function copyTypeDeclarations(packageDir: string) {
+  console.log("\n📝 Copying TypeScript declarations...");
 
   try {
     const distDirPath = `${packageDir}/_dist`;
@@ -120,21 +69,27 @@ async function copyTypeDeclarations(packageDir: string, _entrypoint: string) {
         await Deno.copyFile(sourcePath, targetPath);
         console.log(`  ✅ Copied ${entry.name}`);
       } else if (entry.isDirectory) {
-        await Deno.mkdir(targetPath, { recursive: true });
-        for await (const subEntry of Deno.readDir(sourcePath)) {
-          if (subEntry.isFile) {
-            await Deno.copyFile(
-              `${sourcePath}/${subEntry.name}`,
-              `${targetPath}/${subEntry.name}`
-            );
-          }
-        }
+        await copyDirectory(sourcePath, targetPath);
         console.log(`  ✅ Copied directory ${entry.name}`);
       }
     }
 
     console.log("✅ TypeScript declarations copied");
   } catch (error) {
-    console.warn("⚠️ Failed to copy declarations:", error);
+    console.warn("⚠️ No TypeScript declarations found");
+  }
+}
+
+async function copyDirectory(source: string, target: string) {
+  await Deno.mkdir(target, { recursive: true });
+  for await (const entry of Deno.readDir(source)) {
+    const sourcePath = `${source}/${entry.name}`;
+    const targetPath = `${target}/${entry.name}`;
+    
+    if (entry.isFile) {
+      await Deno.copyFile(sourcePath, targetPath);
+    } else if (entry.isDirectory) {
+      await copyDirectory(sourcePath, targetPath);
+    }
   }
 }
