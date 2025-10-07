@@ -1,4 +1,4 @@
-import $ from "@david/dax";
+import $ from "dax-sh";
 import {
   chmod,
   mkdir,
