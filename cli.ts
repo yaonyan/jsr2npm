@@ -1,4 +1,3 @@
-#!/usr/bin/env -S deno run --allow-all
 import { loadConfig } from "./config.ts";
 import { convertPackage } from "./converter.ts";
 
