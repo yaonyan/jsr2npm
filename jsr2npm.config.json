@@ -7,14 +7,7 @@
         "jsr2npm": "cli.ts"
       },
       "packageJson": {
-        "name": "@yaonyan/jsr2npm",
-        "description": "Bridge the gap: Publish JSR packages to NPM with zero hassle",
-        "keywords": ["jsr", "npm", "converter", "deno", "cli", "bundler"],
-        "repository": {
-          "type": "git",
-          "url": "git+https://github.com/yaonyan/jsr2npm.git"
-        },
-        "homepage": "https://github.com/yaonyan/jsr2npm"
+        "name": "@yaonyan/jsr2npm"
       }
     }
   ]
