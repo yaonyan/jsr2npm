@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import process from "node:process";
 
 export interface PackageOverrides {
   name?: string;
@@ -26,7 +28,8 @@ export interface Config {
 
 export async function loadConfig(configPath: string): Promise<Config | null> {
   try {
-    const content = await readFile(configPath, "utf-8");
+    const absolutePath = resolve(process.cwd(), configPath);
+    const content = await readFile(absolutePath, "utf-8");
     return JSON.parse(content);
   } catch {
     return null;
