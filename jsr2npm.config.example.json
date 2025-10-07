@@ -2,7 +2,7 @@
   "packages": [
     {
       "name": "@scope/simple-lib",
-      "version": "1.0.0",
+      "version": "latest",
       "packageJson": {
         "name": "@npm-org/simple-lib",
         "description": "A simple library (uses JSR exports as-is)"

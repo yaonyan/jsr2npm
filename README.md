@@ -36,7 +36,7 @@ Many developers want to:
       "packages": [
         {
           "name": "@scope/package",
-          "version": "1.0.0",
+          "version": "latest",
           "packageJson": {
             "name": "@myorg/package",
             "description": "Package description"
@@ -52,7 +52,7 @@ Many developers want to:
       "packages": [
         {
           "name": "@scope/cli-tool",
-          "version": "1.0.0",
+          "version": "latest",
           "bin": {
             "your-command": "src/bin.ts"
           },
