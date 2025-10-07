@@ -166,8 +166,16 @@ The converted packages will be in `__<scope>__<package>_<version>/dist/` directo
 After conversion, you can publish manually:
 
 ```bash
-cd __mcpc__cli_0.1.1/dist
+# For a single package
+cd __scope__package_version/dist
 npm publish --access public
+
+# For multiple packages (loop through all)
+for dir in __*_*/dist; do
+  cd "$dir"
+  npm publish --access public
+  cd ../..
+done
 ```
 
 ---
@@ -239,8 +247,11 @@ jobs:
 
       - name: Publish to npm
         run: |
-          cd __*_*/dist
-          npm publish --access public --provenance
+          for dir in __*_*/dist; do
+            cd "$dir"
+            npm publish --access public --provenance
+            cd ../..
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
