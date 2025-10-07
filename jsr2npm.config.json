@@ -1,25 +1,10 @@
 {
   "packages": [
     {
-      "name": "@mcpc/cli",
-      "version": "0.1.1",
-      "bin": {
-        "mcpc": "src/bin.ts"
-      },
+      "name": "@mcpc/cmcp",
+      "version": "0.0.3-beta-2",
       "packageJson": {
-        "name": "@mcpc-tech/cli",
-        "version": "0.1.1-beta.5"
-      }
-    },
-    {
-      "name": "@yao/gpt-vis-mcp",
-      "version": "0.1.1-beta.1",
-      "bin": {
-        "gpt-vis-mcp": "stdio.server.ts"
-      },
-      "packageJson": {
-        "name": "@jsr2npm/yao__gpt-vis-mcp",
-        "version": "0.1.1-beta.4"
+        "name": "@mcpc-tech/cmcp"
       }
     }
   ]
