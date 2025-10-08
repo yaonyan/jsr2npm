@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { build } from "esbuild";
 
 export async function bundleWithEsbuild(
   packageDir: string,
@@ -7,8 +8,6 @@ export async function bundleWithEsbuild(
   outputFile: string,
   externalPackages: string[] = [],
 ): Promise<void> {
-  const { build } = await import("npm:esbuild@0.25.5");
-
   const entryPath = join(process.cwd(), packageDir, inputFile);
   const outputPath = join(process.cwd(), packageDir, "dist", outputFile);
   const outputDir = outputPath.split("/").slice(0, -1).join("/");

@@ -8,12 +8,17 @@ export async function generatePackageJson(
   packageDir: string,
   bin?: Record<string, string>,
   overrides?: PackageOverrides,
+  allDependencies?: Record<string, string>,
 ) {
   console.log("\n📋 Generating package.json...");
 
   const jsrPkg = await readPackageJson(`${packageDir}/package.json`);
   const denoJson = await readDenoJson(packageDir);
-  const dependencies = getNpmDependencies(jsrPkg.dependencies);
+
+  // 如果提供了 allDependencies，使用它；否则从 jsrPkg 中提取
+  const dependencies = allDependencies ||
+    getNpmDependencies(jsrPkg.dependencies);
+
   const newPkg = buildPackageJson(
     jsrPkg,
     denoJson,

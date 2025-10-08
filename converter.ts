@@ -37,12 +37,14 @@ export async function convertPackage(
     const packageDir = join("node_modules", packageName);
     await mkdir(join(packageDir, "dist"), { recursive: true });
 
-    const externalPackages = await getExternalPackages(packageDir);
-    await bundlePackage(packageDir, bin, externalPackages);
+    const { externals, allDependencies } = await getExternalPackages(
+      packageDir,
+    );
+    await bundlePackage(packageDir, bin, externals);
 
     await copyTypeDeclarations(packageDir);
     await copyExtraFiles(packageDir, `${packageDir}/dist`);
-    await generatePackageJson(packageDir, bin, overrides);
+    await generatePackageJson(packageDir, bin, overrides, allDependencies);
     await moveDistToRoot(packageDir);
 
     console.log("\n✅ Conversion completed!");
@@ -59,12 +61,15 @@ function createWorkspace(packageName: string, version: string): string {
   return folderName;
 }
 
-async function getExternalPackages(packageDir: string): Promise<string[]> {
+async function getExternalPackages(packageDir: string): Promise<{
+  externals: string[];
+  allDependencies: Record<string, string>;
+}> {
   try {
     const content = await readFile(join(packageDir, "package.json"), "utf-8");
     const pkgJson = JSON.parse(content);
 
-    if (!pkgJson.dependencies) return [];
+    if (!pkgJson.dependencies) return { externals: [], allDependencies: {} };
 
     const topLevelDeps: Record<string, string> = {};
     for (const [name, version] of Object.entries(pkgJson.dependencies)) {
@@ -96,9 +101,9 @@ async function getExternalPackages(packageDir: string): Promise<string[]> {
       console.log(`⚠️  Version conflicts, will bundle: ${conflictList}`);
     }
 
-    return externals;
+    return { externals, allDependencies: topLevelDeps };
   } catch {
-    return [];
+    return { externals: [], allDependencies: {} };
   }
 }
 
@@ -109,14 +114,14 @@ async function findConflictingPackages(
 ): Promise<Set<string>> {
   const conflicts = new Set<string>();
 
+  // 获取根 node_modules 路径
+  const parts = packageDir.split(/[\/\\]/);
+  const nodeModulesIndex = parts.indexOf("node_modules");
+  const rootNodeModules = parts.slice(0, nodeModulesIndex + 1).join("/");
+
   for (const jsrPkg of jsrPackages) {
     try {
-      const jsrPkgPath = join(
-        packageDir,
-        "node_modules",
-        jsrPkg,
-        "package.json",
-      );
+      const jsrPkgPath = join(rootNodeModules, jsrPkg, "package.json");
       const jsrContent = await readFile(jsrPkgPath, "utf-8");
       const jsrPkgJson = JSON.parse(jsrContent);
 
@@ -134,6 +139,8 @@ async function findConflictingPackages(
             console.log(`      Top-level: ${topLevelDeps[depName]}`);
             console.log(`      ${jsrPkg}: ${depVersion}`);
           }
+        } else {
+          topLevelDeps[depName] = String(depVersion);
         }
       }
     } catch {
