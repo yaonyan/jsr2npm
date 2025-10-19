@@ -19,12 +19,17 @@ export async function convertPackage(
   version: string,
   bin?: Record<string, string>,
   overrides?: PackageOverrides,
+  browser?: boolean,
 ) {
   console.log(`\n📦 Package: ${packageName}`);
   console.log(`🏷️  Version: ${version}`);
 
   if (bin) {
     console.log(`🔧 CLI Commands: ${Object.keys(bin).join(", ")}`);
+  }
+
+  if (browser) {
+    console.log(`🌐 Browser mode: enabled`);
   }
 
   const workspaceDir = createWorkspace(packageName, version);
@@ -40,7 +45,7 @@ export async function convertPackage(
     const { externals, allDependencies } = await getExternalPackages(
       packageDir,
     );
-    await bundlePackage(packageDir, bin, externals);
+    await bundlePackage(packageDir, bin, externals, browser);
 
     await copyTypeDeclarations(packageDir);
     await copyExtraFiles(packageDir, `${packageDir}/dist`);
@@ -114,7 +119,7 @@ async function findConflictingPackages(
 ): Promise<Set<string>> {
   const conflicts = new Set<string>();
 
-  // 获取根 node_modules 路径
+  // Get root node_modules path
   const parts = packageDir.split(/[\/\\]/);
   const nodeModulesIndex = parts.indexOf("node_modules");
   const rootNodeModules = parts.slice(0, nodeModulesIndex + 1).join("/");
@@ -155,11 +160,12 @@ async function bundlePackage(
   packageDir: string,
   bin: Record<string, string> | undefined,
   externalPackages: string[],
+  browser?: boolean,
 ) {
   if (bin) {
-    await bundleBinCommands(packageDir, bin, externalPackages);
+    await bundleBinCommands(packageDir, bin, externalPackages, browser);
   } else {
-    await bundleLibraryExports(packageDir, externalPackages);
+    await bundleLibraryExports(packageDir, externalPackages, browser);
   }
 }
 
@@ -167,6 +173,7 @@ async function bundleBinCommands(
   packageDir: string,
   bin: Record<string, string>,
   externalPackages: string[],
+  browser?: boolean,
 ) {
   console.log("\n🔨 Bundling CLI tools...");
 
@@ -179,6 +186,7 @@ async function bundleBinCommands(
       inputFile,
       outputFile,
       externalPackages,
+      browser || false, // use browser mode if specified
     );
 
     const outputPath = join(packageDir, "dist", outputFile);
@@ -191,6 +199,7 @@ async function bundleBinCommands(
 async function bundleLibraryExports(
   packageDir: string,
   externalPackages: string[],
+  browser?: boolean,
 ) {
   const exports = await readDenoJsonExports(packageDir);
   if (!exports) return;
@@ -209,6 +218,7 @@ async function bundleLibraryExports(
       inputFile,
       outputFile,
       externalPackages,
+      browser || false, // use browser mode if specified
     );
     console.log(`  ✅ Bundled ${exportKey}: ${outputFile}`);
   }

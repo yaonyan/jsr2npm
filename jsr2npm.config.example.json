@@ -9,6 +9,15 @@
       }
     },
     {
+      "name": "@scope/browser-lib",
+      "version": "latest",
+      "browser": true,
+      "packageJson": {
+        "name": "@npm-org/browser-lib",
+        "description": "A browser-compatible library (no Node.js APIs)"
+      }
+    },
+    {
       "name": "@scope/cli-tool",
       "version": "1.0.0",
       "bin": {

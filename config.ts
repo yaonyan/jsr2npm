@@ -17,9 +17,11 @@ export interface PackageOverrides {
 export interface PackageConfig {
   name: string;
   version: string;
-  // CLI 命令配置：{ "command-name": "src/file.ts" }
+  // CLI commands configuration: { "command-name": "src/file.ts" }
   bin?: Record<string, string>;
   packageJson?: PackageOverrides;
+  // Whether this is a browser-compatible package (default false uses node platform; set true to use neutral platform)
+  browser?: boolean;
 }
 
 export interface Config {

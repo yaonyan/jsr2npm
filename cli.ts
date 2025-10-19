@@ -43,6 +43,7 @@ async function main() {
         pkg.version,
         pkg.bin,
         pkg.packageJson,
+        pkg.browser,
       );
     } catch (error) {
       console.error(

@@ -15,7 +15,7 @@ export async function generatePackageJson(
   const jsrPkg = await readPackageJson(`${packageDir}/package.json`);
   const denoJson = await readDenoJson(packageDir);
 
-  // 如果提供了 allDependencies，使用它；否则从 jsrPkg 中提取
+  // Use allDependencies if provided, otherwise extract from jsrPkg
   const dependencies = allDependencies ||
     getNpmDependencies(jsrPkg.dependencies);
 

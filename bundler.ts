@@ -7,6 +7,7 @@ export async function bundleWithEsbuild(
   inputFile: string,
   outputFile: string,
   externalPackages: string[] = [],
+  useBrowserPlatform: boolean = false,
 ): Promise<void> {
   const entryPath = join(process.cwd(), packageDir, inputFile);
   const outputPath = join(process.cwd(), packageDir, "dist", outputFile);
@@ -19,19 +20,26 @@ export async function bundleWithEsbuild(
     : "none";
   console.log(`  📦 External packages: ${externalList}`);
 
+  const platform = useBrowserPlatform ? "neutral" : "node";
+  const banner = useBrowserPlatform ? ({} as Record<string, string>) : {
+    js: `#!/usr/bin/env node
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);`,
+  };
+
+  console.log(
+    `  🔧 Platform: ${platform}${useBrowserPlatform ? " (browser)" : ""}`,
+  );
+
   await build({
     entryPoints: [entryPath],
     bundle: true,
-    platform: "node",
+    platform,
     format: "esm",
     outfile: outputPath,
     external: externalPackages,
     packages: "bundle",
-    banner: {
-      js: `#!/usr/bin/env node
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);`,
-    },
+    banner,
     write: true,
   });
 }
