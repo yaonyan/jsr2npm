@@ -12,6 +12,7 @@ export interface PackageOverrides {
   homepage?: string;
   keywords?: string[];
   scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
 }
 
 export interface PackageConfig {

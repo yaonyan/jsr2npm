@@ -25,7 +25,24 @@
       },
       "packageJson": {
         "name": "@npm-org/cli-tool",
-        "description": "A CLI tool with bin command"
+        "description": "A CLI tool with bin command",
+        "dependencies": {
+          "chalk": "^5.3.0",
+          "commander": "^11.0.0"
+        }
+      }
+    },
+    {
+      "name": "@scope/lib-with-deps",
+      "version": "latest",
+      "packageJson": {
+        "name": "@npm-org/lib-with-deps",
+        "description": "A library with custom external dependencies",
+        "dependencies": {
+          "lodash": "^4.17.21",
+          "axios": "^1.6.0",
+          "date-fns": "^3.0.0"
+        }
       }
     }
   ]

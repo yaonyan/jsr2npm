@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import process from "node:process";
 import { bundleWithEsbuild, copyTypeDeclarations } from "./bundler.ts";
 import { copyExtraFiles, generatePackageJson } from "./package-generator.ts";
 import type { PackageOverrides } from "./config.ts";
@@ -44,6 +45,7 @@ export async function convertPackage(
 
     const { externals, allDependencies } = await getExternalPackages(
       packageDir,
+      overrides,
     );
     await bundlePackage(packageDir, bin, externals, browser);
 
@@ -66,7 +68,10 @@ function createWorkspace(packageName: string, version: string): string {
   return folderName;
 }
 
-async function getExternalPackages(packageDir: string): Promise<{
+async function getExternalPackages(
+  packageDir: string,
+  overrides?: PackageOverrides,
+): Promise<{
   externals: string[];
   allDependencies: Record<string, string>;
 }> {
@@ -74,18 +79,31 @@ async function getExternalPackages(packageDir: string): Promise<{
     const content = await readFile(join(packageDir, "package.json"), "utf-8");
     const pkgJson = JSON.parse(content);
 
-    if (!pkgJson.dependencies) return { externals: [], allDependencies: {} };
+    // Merge user-configured dependencies
+    const userDependencies = overrides?.dependencies || {};
+    if (!pkgJson.dependencies && Object.keys(userDependencies).length === 0) {
+      return { externals: [], allDependencies: {} };
+    }
 
     const topLevelDeps: Record<string, string> = {};
-    for (const [name, version] of Object.entries(pkgJson.dependencies)) {
-      if (!name.startsWith("@jsr/")) {
-        topLevelDeps[name] = String(version);
+    
+    // First, collect dependencies from package.json
+    if (pkgJson.dependencies) {
+      for (const [name, version] of Object.entries(pkgJson.dependencies)) {
+        if (!name.startsWith("@jsr/")) {
+          topLevelDeps[name] = String(version);
+        }
       }
     }
 
-    const jsrPackages = Object.keys(pkgJson.dependencies).filter((name) =>
-      name.startsWith("@jsr/")
-    );
+    // Then, merge user-configured dependencies (overrides JSR package deps)
+    for (const [name, version] of Object.entries(userDependencies)) {
+      topLevelDeps[name] = version;
+    }
+
+    const jsrPackages = pkgJson.dependencies 
+      ? Object.keys(pkgJson.dependencies).filter((name) => name.startsWith("@jsr/"))
+      : [];
     const conflictingPackages = await findConflictingPackages(
       packageDir,
       jsrPackages,
@@ -100,6 +118,11 @@ async function getExternalPackages(packageDir: string): Promise<{
     console.log(
       `\n📦 External dependencies (${externals.length}): ${externalList}`,
     );
+
+    if (Object.keys(userDependencies).length > 0) {
+      const userDepsList = Object.keys(userDependencies).join(", ");
+      console.log(`📝 User-configured dependencies: ${userDepsList}`);
+    }
 
     if (conflictingPackages.size > 0) {
       const conflictList = Array.from(conflictingPackages).join(", ");
