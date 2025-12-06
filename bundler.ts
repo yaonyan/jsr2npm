@@ -10,8 +10,10 @@ export async function bundleWithEsbuild(
   useBrowserPlatform: boolean = false,
 ): Promise<void> {
   const entryPath = join(process.cwd(), packageDir, inputFile);
-  const outputPath = join(process.cwd(), packageDir, "dist", outputFile);
-  const outputDir = outputPath.split("/").slice(0, -1).join("/");
+  const baseName = outputFile.replace(/\.mjs$/, "");
+  const esmOutputPath = join(process.cwd(), packageDir, "dist", `${baseName}.mjs`);
+  const cjsOutputPath = join(process.cwd(), packageDir, "dist", `${baseName}.cjs`);
+  const outputDir = esmOutputPath.split("/").slice(0, -1).join("/");
 
   await mkdir(outputDir, { recursive: true });
 
@@ -21,27 +23,47 @@ export async function bundleWithEsbuild(
   console.log(`  📦 External packages: ${externalList}`);
 
   const platform = useBrowserPlatform ? "neutral" : "node";
-  const banner = useBrowserPlatform ? ({} as Record<string, string>) : {
+  const esmBanner = useBrowserPlatform ? ({} as Record<string, string>) : {
     js: `#!/usr/bin/env node
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);`,
+  };
+  const cjsBanner = useBrowserPlatform ? ({} as Record<string, string>) : {
+    js: `#!/usr/bin/env node`,
   };
 
   console.log(
     `  🔧 Platform: ${platform}${useBrowserPlatform ? " (browser)" : ""}`,
   );
 
+  // Build ESM
   await build({
     entryPoints: [entryPath],
     bundle: true,
     platform,
     format: "esm",
-    outfile: outputPath,
+    outfile: esmOutputPath,
     external: externalPackages,
     packages: "bundle",
-    banner,
+    banner: esmBanner,
     write: true,
   });
+
+  // Build CommonJS
+  await build({
+    entryPoints: [entryPath],
+    bundle: true,
+    platform,
+    format: "cjs",
+    outfile: cjsOutputPath,
+    external: externalPackages,
+    packages: "bundle",
+    banner: cjsBanner,
+    write: true,
+  });
+
+  console.log(`  ✅ Built ESM: ${baseName}.mjs`);
+  console.log(`  ✅ Built CJS: ${baseName}.cjs`);
 }
 
 export async function copyTypeDeclarations(packageDir: string) {

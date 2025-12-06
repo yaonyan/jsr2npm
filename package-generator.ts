@@ -33,8 +33,7 @@ export async function generatePackageJson(
   );
 
   console.log(
-    `✅ Generated package.json with ${
-      Object.keys(dependencies).length
+    `✅ Generated package.json with ${Object.keys(dependencies).length
     } dependencies`,
   );
 }
@@ -83,9 +82,11 @@ function buildPackageJson(
 ): PackageJson {
   const pkg: PackageJson = {
     ...jsrPkg,
-    type: "module",
     dependencies,
   };
+
+  // Remove type: module to support dual ESM/CJS
+  delete pkg.type;
 
   mergeMetadata(pkg, denoJson);
   addBugsUrl(pkg);
@@ -151,15 +152,23 @@ function buildBinExports(pkg: PackageJson, bin: Record<string, string>) {
   const exports: Record<string, unknown> = {};
 
   for (const cmdName of Object.keys(bin)) {
+    // Use .mjs for bin commands (ESM with shebang)
     binCommands[cmdName] = `./bin/${cmdName}.mjs`;
-    exports[`./bin/${cmdName}`] = `./bin/${cmdName}.mjs`;
+    exports[`./bin/${cmdName}`] = {
+      import: `./bin/${cmdName}.mjs`,
+      require: `./bin/${cmdName}.cjs`,
+    };
   }
 
   pkg.bin = binCommands;
   const firstCmd = Object.keys(bin)[0];
-  exports["."] = `./bin/${firstCmd}.mjs`;
+  exports["."] = {
+    import: `./bin/${firstCmd}.mjs`,
+    require: `./bin/${firstCmd}.cjs`,
+  };
   pkg.exports = exports;
-  pkg.main = `./bin/${firstCmd}.mjs`;
+  pkg.main = `./bin/${firstCmd}.cjs`;
+  pkg.module = `./bin/${firstCmd}.mjs`;
 
   console.log(
     `  🔧 Added bin commands: ${Object.keys(binCommands).join(", ")}`,
@@ -174,27 +183,29 @@ function buildLibraryExports(pkg: PackageJson, denoJson: PackageJson) {
     const tsPath = typeof value === "string" ? value : null;
     if (!tsPath) continue;
 
-    const mjsFile = key === "."
-      ? "index.mjs"
-      : `${key.replace(/^\.\//, "")}.mjs`;
+    const baseName = key === "."
+      ? "index"
+      : key.replace(/^\.\//, "");
     const dtsFile = tsPath.replace(/\.ts$/, ".d.ts").replace(/^\.\//, "");
 
     exports[key] = {
       types: `./types/${dtsFile}`,
-      import: `./${mjsFile}`,
+      import: `./${baseName}.mjs`,
+      require: `./${baseName}.cjs`,
     };
   }
 
   exports["./types/*"] = "./types/*";
   pkg.exports = exports;
 
-  const mainExport = exports["."];
-  if (mainExport && typeof mainExport === "object" && "import" in mainExport) {
-    pkg.main = mainExport.import as string;
+  const mainExport = exports["."] as { import: string; require: string } | undefined;
+  if (mainExport) {
+    pkg.main = mainExport.require;
+    pkg.module = mainExport.import;
   }
 
   console.log(
-    `  📦 Built exports for ${Object.keys(denoExports).length} entry points`,
+    `  📦 Built exports for ${Object.keys(denoExports).length} entry points (ESM + CJS)`,
   );
 }
 
