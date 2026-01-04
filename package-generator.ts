@@ -33,7 +33,8 @@ export async function generatePackageJson(
   );
 
   console.log(
-    `✅ Generated package.json with ${Object.keys(dependencies).length
+    `✅ Generated package.json with ${
+      Object.keys(dependencies).length
     } dependencies`,
   );
 }
@@ -183,9 +184,7 @@ function buildLibraryExports(pkg: PackageJson, denoJson: PackageJson) {
     const tsPath = typeof value === "string" ? value : null;
     if (!tsPath) continue;
 
-    const baseName = key === "."
-      ? "index"
-      : key.replace(/^\.\//, "");
+    const baseName = key === "." ? "index" : key.replace(/^\.\//, "");
     const dtsFile = tsPath.replace(/\.ts$/, ".d.ts").replace(/^\.\//, "");
 
     exports[key] = {
@@ -198,14 +197,18 @@ function buildLibraryExports(pkg: PackageJson, denoJson: PackageJson) {
   exports["./types/*"] = "./types/*";
   pkg.exports = exports;
 
-  const mainExport = exports["."] as { import: string; require: string } | undefined;
+  const mainExport = exports["."] as
+    | { import: string; require: string }
+    | undefined;
   if (mainExport) {
     pkg.main = mainExport.require;
     pkg.module = mainExport.import;
   }
 
   console.log(
-    `  📦 Built exports for ${Object.keys(denoExports).length} entry points (ESM + CJS)`,
+    `  📦 Built exports for ${
+      Object.keys(denoExports).length
+    } entry points (ESM + CJS)`,
   );
 }
 
@@ -220,6 +223,7 @@ function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
     "author",
     "repository",
     "homepage",
+    "publishConfig",
   ];
 
   for (const field of fields) {

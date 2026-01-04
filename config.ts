@@ -13,6 +13,7 @@ export interface PackageOverrides {
   keywords?: string[];
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
+  publishConfig?: Record<string, unknown>;
 }
 
 export interface PackageConfig {
