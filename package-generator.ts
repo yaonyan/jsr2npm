@@ -1,5 +1,12 @@
-import { copyFile, readFile, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
 import type { PackageOverrides } from "./config.ts";
 
 type PackageJson = Record<string, unknown>;
@@ -248,7 +255,11 @@ function applyOverrides(pkg: PackageJson, overrides?: PackageOverrides) {
   }
 }
 
-export async function copyExtraFiles(sourceDir: string, targetDir: string) {
+export async function copyExtraFiles(
+  sourceDir: string,
+  targetDir: string,
+  extraFiles?: string[],
+) {
   console.log("\n📄 Copying extra files...");
 
   const files = ["README.md", "README", "LICENSE", "LICENSE.md"];
@@ -260,6 +271,86 @@ export async function copyExtraFiles(sourceDir: string, targetDir: string) {
       console.log(`  ✅ Copied ${file}`);
     } catch {
       // File doesn't exist, skip
+    }
+  }
+
+  if (extraFiles && extraFiles.length > 0) {
+    for (const pattern of extraFiles) {
+      await copyGlobPattern(sourceDir, targetDir, pattern);
+    }
+  }
+}
+
+async function copyGlobPattern(
+  sourceDir: string,
+  targetDir: string,
+  pattern: string,
+) {
+  if (pattern.includes("**")) {
+    const [prefix] = pattern.split("**");
+    const suffix = pattern.split("**").pop() || "";
+    const ext = suffix.replace(/^\/?\*/, "");
+    const searchDir = join(sourceDir, prefix);
+
+    try {
+      await copyMatchingFiles(searchDir, sourceDir, targetDir, ext);
+    } catch {
+      console.log(`  ⚠️  Pattern ${pattern} matched no files`);
+    }
+  } else {
+    try {
+      const srcPath = join(sourceDir, pattern);
+      const destPath = join(targetDir, pattern);
+      const srcStat = await stat(srcPath);
+
+      if (srcStat.isDirectory()) {
+        await copyDir(srcPath, destPath);
+      } else {
+        await mkdir(dirname(destPath), { recursive: true });
+        await copyFile(srcPath, destPath);
+      }
+      console.log(`  ✅ Copied ${pattern}`);
+    } catch {
+      console.log(`  ⚠️  File ${pattern} not found`);
+    }
+  }
+}
+
+async function copyMatchingFiles(
+  dir: string,
+  sourceRoot: string,
+  targetRoot: string,
+  ext: string,
+) {
+  const entries = await readdir(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyMatchingFiles(fullPath, sourceRoot, targetRoot, ext);
+    } else if (entry.name.endsWith(ext)) {
+      const relativePath = relative(sourceRoot, fullPath);
+      const destPath = join(targetRoot, relativePath);
+      await mkdir(dirname(destPath), { recursive: true });
+      await copyFile(fullPath, destPath);
+      console.log(`  ✅ Copied ${relativePath}`);
+    }
+  }
+}
+
+async function copyDir(src: string, dest: string) {
+  await mkdir(dest, { recursive: true });
+  const entries = await readdir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDir(srcPath, destPath);
+    } else {
+      await copyFile(srcPath, destPath);
     }
   }
 }

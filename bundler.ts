@@ -11,8 +11,18 @@ export async function bundleWithEsbuild(
 ): Promise<void> {
   const entryPath = join(process.cwd(), packageDir, inputFile);
   const baseName = outputFile.replace(/\.mjs$/, "");
-  const esmOutputPath = join(process.cwd(), packageDir, "dist", `${baseName}.mjs`);
-  const cjsOutputPath = join(process.cwd(), packageDir, "dist", `${baseName}.cjs`);
+  const esmOutputPath = join(
+    process.cwd(),
+    packageDir,
+    "dist",
+    `${baseName}.mjs`,
+  );
+  const cjsOutputPath = join(
+    process.cwd(),
+    packageDir,
+    "dist",
+    `${baseName}.cjs`,
+  );
   const outputDir = esmOutputPath.split("/").slice(0, -1).join("/");
 
   await mkdir(outputDir, { recursive: true });

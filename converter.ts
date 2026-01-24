@@ -50,9 +50,9 @@ export async function convertPackage(
     await bundlePackage(packageDir, bin, externals, browser);
 
     await copyTypeDeclarations(packageDir);
-    await copyExtraFiles(packageDir, `${packageDir}/dist`);
+    await copyExtraFiles(packageDir, `${packageDir}/dist`, overrides?.files);
     await generatePackageJson(packageDir, bin, overrides, allDependencies);
-    await moveDistToRoot(packageDir);
+    await moveDistToRoot(packageDir, overrides?.files);
 
     console.log("\n✅ Conversion completed!");
     console.log(`📂 Output: ${workspaceDir}/dist`);
@@ -86,7 +86,7 @@ async function getExternalPackages(
     }
 
     const topLevelDeps: Record<string, string> = {};
-    
+
     // First, collect dependencies from package.json
     if (pkgJson.dependencies) {
       for (const [name, version] of Object.entries(pkgJson.dependencies)) {
@@ -101,8 +101,10 @@ async function getExternalPackages(
       topLevelDeps[name] = version;
     }
 
-    const jsrPackages = pkgJson.dependencies 
-      ? Object.keys(pkgJson.dependencies).filter((name) => name.startsWith("@jsr/"))
+    const jsrPackages = pkgJson.dependencies
+      ? Object.keys(pkgJson.dependencies).filter((name) =>
+        name.startsWith("@jsr/")
+      )
       : [];
     const conflictingPackages = await findConflictingPackages(
       packageDir,
@@ -294,7 +296,7 @@ async function readDenoJsonExports(
   return null;
 }
 
-async function moveDistToRoot(packageDir: string) {
+async function moveDistToRoot(packageDir: string, extraFiles?: string[]) {
   const sourceDist = join(packageDir, "dist");
   const targetDist = join(process.cwd(), "dist");
 
@@ -305,5 +307,5 @@ async function moveDistToRoot(packageDir: string) {
   }
 
   await rename(sourceDist, targetDist);
-  await copyExtraFiles(packageDir, targetDist);
+  await copyExtraFiles(packageDir, targetDist, extraFiles);
 }

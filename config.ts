@@ -14,6 +14,7 @@ export interface PackageOverrides {
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
   publishConfig?: Record<string, unknown>;
+  files?: string[];
 }
 
 export interface PackageConfig {
