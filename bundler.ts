@@ -8,6 +8,7 @@ export async function bundleWithEsbuild(
   outputFile: string,
   externalPackages: string[] = [],
   useBrowserPlatform: boolean = false,
+  isBin: boolean = false,
 ): Promise<void> {
   const entryPath = join(process.cwd(), packageDir, inputFile);
   const baseName = outputFile.replace(/\.mjs$/, "");
@@ -33,14 +34,20 @@ export async function bundleWithEsbuild(
   console.log(`  📦 External packages: ${externalList}`);
 
   const platform = useBrowserPlatform ? "neutral" : "node";
-  const esmBanner = useBrowserPlatform ? ({} as Record<string, string>) : {
-    js: `#!/usr/bin/env node
+
+  // Only add hash bang for bin files
+  const esmBanner = useBrowserPlatform || !isBin
+    ? ({} as Record<string, string>)
+    : {
+      js: `#!/usr/bin/env node
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);`,
-  };
-  const cjsBanner = useBrowserPlatform ? ({} as Record<string, string>) : {
-    js: `#!/usr/bin/env node`,
-  };
+    };
+  const cjsBanner = useBrowserPlatform || !isBin
+    ? ({} as Record<string, string>)
+    : {
+      js: `#!/usr/bin/env node`,
+    };
 
   console.log(
     `  🔧 Platform: ${platform}${useBrowserPlatform ? " (browser)" : ""}`,

@@ -187,10 +187,12 @@ async function bundlePackage(
   externalPackages: string[],
   browser?: boolean,
 ) {
+  // Always bundle library exports from deno.json
+  await bundleLibraryExports(packageDir, externalPackages, browser);
+
+  // Also bundle bin commands if specified
   if (bin) {
     await bundleBinCommands(packageDir, bin, externalPackages, browser);
-  } else {
-    await bundleLibraryExports(packageDir, externalPackages, browser);
   }
 }
 
@@ -212,6 +214,7 @@ async function bundleBinCommands(
       outputFile,
       externalPackages,
       browser || false, // use browser mode if specified
+      true, // isBin = true
     );
 
     const outputPath = join(packageDir, "dist", outputFile);

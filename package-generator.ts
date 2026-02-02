@@ -145,11 +145,18 @@ function buildExports(
   denoJson: PackageJson,
   bin?: Record<string, string>,
 ) {
-  if (bin && Object.keys(bin).length > 0) {
-    buildBinExports(pkg, bin);
-  } else if (denoJson.exports) {
+  const hasLibraryExports = !!denoJson.exports;
+  const hasBinExports = bin && Object.keys(bin).length > 0;
+
+  if (hasLibraryExports) {
     buildLibraryExports(pkg, denoJson);
-  } else {
+  }
+
+  if (hasBinExports) {
+    buildBinExports(pkg, bin);
+  }
+
+  if (!hasLibraryExports && !hasBinExports) {
     pkg.exports = { "./types/*": "./types/*" };
     console.log(`  ⚠️  No exports found, only exposing types`);
   }
@@ -157,7 +164,9 @@ function buildExports(
 
 function buildBinExports(pkg: PackageJson, bin: Record<string, string>) {
   const binCommands: Record<string, string> = {};
-  const exports: Record<string, unknown> = {};
+
+  // Get existing exports or create new
+  const exports = (pkg.exports as Record<string, unknown>) || {};
 
   for (const cmdName of Object.keys(bin)) {
     // Use .mjs for bin commands (ESM with shebang)
@@ -169,14 +178,14 @@ function buildBinExports(pkg: PackageJson, bin: Record<string, string>) {
   }
 
   pkg.bin = binCommands;
-  const firstCmd = Object.keys(bin)[0];
-  exports["."] = {
-    import: `./bin/${firstCmd}.mjs`,
-    require: `./bin/${firstCmd}.cjs`,
-  };
   pkg.exports = exports;
-  pkg.main = `./bin/${firstCmd}.cjs`;
-  pkg.module = `./bin/${firstCmd}.mjs`;
+
+  // Only set main/module if not already set by library exports
+  if (!pkg.main) {
+    const firstCmd = Object.keys(bin)[0];
+    pkg.main = `./bin/${firstCmd}.cjs`;
+    pkg.module = `./bin/${firstCmd}.mjs`;
+  }
 
   console.log(
     `  🔧 Added bin commands: ${Object.keys(binCommands).join(", ")}`,
