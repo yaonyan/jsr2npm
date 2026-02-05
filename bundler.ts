@@ -35,19 +35,16 @@ export async function bundleWithEsbuild(
 
   const platform = useBrowserPlatform ? "neutral" : "node";
 
-  // Only add hash bang for bin files
-  const esmBanner = useBrowserPlatform || !isBin
-    ? ({} as Record<string, string>)
-    : {
-      js: `#!/usr/bin/env node
-import { createRequire } from 'node:module';
+  // Browser platform: no banner needed
+  // Node platform: add createRequire for ESM compatibility
+  const esmBanner = useBrowserPlatform ? ({} as Record<string, string>) : {
+    js: `import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);`,
-    };
-  const cjsBanner = useBrowserPlatform || !isBin
-    ? ({} as Record<string, string>)
-    : {
-      js: `#!/usr/bin/env node`,
-    };
+  };
+  // CJS doesn't need createRequire, only shebang for bin files
+  const cjsBanner = !isBin ? ({} as Record<string, string>) : {
+    js: `#!/usr/bin/env node`,
+  };
 
   console.log(
     `  🔧 Platform: ${platform}${useBrowserPlatform ? " (browser)" : ""}`,
