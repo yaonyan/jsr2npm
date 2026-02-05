@@ -37,10 +37,19 @@ export async function bundleWithEsbuild(
 
   // Browser platform: no banner needed
   // Node platform: add createRequire for ESM compatibility
-  const esmBanner = useBrowserPlatform ? ({} as Record<string, string>) : {
-    js: `import { createRequire } from 'node:module';
+  // Bin files also need shebang for direct execution
+  const esmBanner = useBrowserPlatform
+    ? ({} as Record<string, string>)
+    : isBin
+      ? {
+        js: `#!/usr/bin/env node
+import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);`,
-  };
+      }
+      : {
+        js: `import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);`,
+      };
   // CJS doesn't need createRequire, only shebang for bin files
   const cjsBanner = !isBin ? ({} as Record<string, string>) : {
     js: `#!/usr/bin/env node`,
