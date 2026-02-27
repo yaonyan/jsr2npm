@@ -41,15 +41,15 @@ export async function bundleWithEsbuild(
   const esmBanner = useBrowserPlatform
     ? ({} as Record<string, string>)
     : isBin
-      ? {
-        js: `#!/usr/bin/env node
+    ? {
+      js: `#!/usr/bin/env node
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);`,
-      }
-      : {
-        js: `import { createRequire } from 'node:module';
+    }
+    : {
+      js: `import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);`,
-      };
+    };
   // CJS doesn't need createRequire, only shebang for bin files
   const cjsBanner = !isBin ? ({} as Record<string, string>) : {
     js: `#!/usr/bin/env node`,

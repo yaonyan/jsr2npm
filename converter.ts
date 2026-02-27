@@ -260,7 +260,9 @@ async function installJSRPackage(packageName: string, version: string) {
     : `${packageName}@${version}`;
   console.log(`🔄 Installing: ${packageSpec}`);
 
-  await $`npx jsr add ${packageSpec}`.cwd(process.cwd());
+  // Use @latest to ensure we get the most recent jsr CLI version
+  // This fixes 404 errors caused by outdated CLI versions
+  await $`npx jsr@latest add ${packageSpec}`.cwd(process.cwd());
 }
 
 async function verifyEntrypoint(packageDir: string, entrypoint: string) {
